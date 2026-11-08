@@ -2,6 +2,7 @@ import Foundation
 
 public enum CSVError: Error, Equatable {
     case unterminatedQuote
+    case malformedQuote(row: Int)
     case inconsistentColumns(row: Int)
     case invalidEncoding
     case duplicateHeader
@@ -21,13 +22,17 @@ public struct CSVParsingService: Sendable {
     public func parse(_ data: Data) throws -> [[String: String]] {
         var header: [String]?
         var rows: [[String: String]] = []
-        var firstInvalidRow: Int?
-        let unfinished = try visitRecords(data) { number, fields in
+        var firstInvalid: CSVError?
+        let unfinished = try visitRecords(data) { number, fields, valid in
+            if !valid {
+                if firstInvalid == nil { firstInvalid = .malformedQuote(row: number) }
+                return
+            }
             if let header {
                 if fields.count == header.count {
                     rows.append(Dictionary(uniqueKeysWithValues: zip(header, fields)))
-                } else if firstInvalidRow == nil {
-                    firstInvalidRow = number
+                } else if firstInvalid == nil {
+                    firstInvalid = .inconsistentColumns(row: number)
                 }
             } else {
                 try validateHeader(fields)
@@ -35,7 +40,7 @@ public struct CSVParsingService: Sendable {
             }
         }
         if unfinished != nil { throw CSVError.unterminatedQuote }
-        if let firstInvalidRow { throw CSVError.inconsistentColumns(row: firstInvalidRow) }
+        if let firstInvalid { throw firstInvalid }
         return rows
     }
 
@@ -55,7 +60,12 @@ public struct CSVParsingService: Sendable {
     public func forEachRowRecovering(_ data: Data, onRejected: (Int) throws -> Void,
                                      onRow: (Int, [String: String]) throws -> Void) throws {
         var header: [String]?
-        let unfinished = try visitRecords(data) { number, fields in
+        let unfinished = try visitRecords(data) { number, fields, valid in
+            guard valid else {
+                if header == nil { throw CSVError.malformedQuote(row: number) }
+                try onRejected(number)
+                return
+            }
             if let header {
                 if fields.count == header.count {
                     try onRow(number, Dictionary(uniqueKeysWithValues: zip(header, fields)))
@@ -75,7 +85,7 @@ public struct CSVParsingService: Sendable {
     }
 
     /// Returns the number of an incomplete final record, if a quote remains open at EOF.
-    private func visitRecords(_ data: Data, _ onRecord: (Int, [String]) throws -> Void) throws -> Int? {
+    private func visitRecords(_ data: Data, _ onRecord: (Int, [String], Bool) throws -> Void) throws -> Int? {
         guard var input = String(data: data, encoding: .utf8) else { throw CSVError.invalidEncoding }
         // Swift treats CRLF as one Character; normalize it before scanning by Character.
         input = input.replacingOccurrences(of: "\r\n", with: "\n")
@@ -85,6 +95,8 @@ public struct CSVParsingService: Sendable {
         var row: [String] = []
         var field = ""
         var quoted = false
+        var afterQuote = false
+        var valid = true
         var scanned = 0
         while index < input.endIndex {
             if scanned.isMultiple(of: 16_384) { try Task.checkCancellation() }
@@ -96,22 +108,33 @@ public struct CSVParsingService: Sendable {
                     if next < input.endIndex && input[next] == "\"" {
                         field.append("\"")
                         index = next
-                    } else { quoted = false }
+                    } else {
+                        quoted = false
+                        afterQuote = true
+                    }
                 } else {
                     field.append(ch)
                 }
             } else {
                 switch ch {
-                case "\"" where field.isEmpty: quoted = true
-                case ",": row.append(field); field = ""
+                case "\"" where field.isEmpty && !afterQuote: quoted = true
+                case "\"": valid = false
+                case ",":
+                    row.append(field)
+                    field = ""
+                    afterQuote = false
                 case "\n":
                     row.append(field)
-                    try onRecord(recordNumber, row)
+                    try onRecord(recordNumber, row, valid)
                     recordNumber += 1
                     row.removeAll(keepingCapacity: true)
                     field.removeAll(keepingCapacity: true)
+                    afterQuote = false
+                    valid = true
                 case "\r": break
-                default: field.append(ch)
+                default:
+                    if afterQuote { valid = false }
+                    field.append(ch)
                 }
             }
             index = input.index(after: index)
@@ -119,7 +142,7 @@ public struct CSVParsingService: Sendable {
         if quoted { return recordNumber }
         if !row.isEmpty || !field.isEmpty {
             row.append(field)
-            try onRecord(recordNumber, row)
+            try onRecord(recordNumber, row, valid)
         }
         return nil
     }

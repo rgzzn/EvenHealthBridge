@@ -16,6 +16,24 @@ import Testing
     }
 }
 
+@Test func malformedQuoteRejectsOnlyItsRecord() throws {
+    let data = Data("timestamp,value,source\n2026-01-01T00:00:00Z,12,R1\n2026-01-01T00:01:00Z,\"13\"extra,R1\n2026-01-01T00:02:00Z,14,R1\n".utf8)
+    #expect(throws: CSVError.malformedQuote(row: 3)) {
+        try CSVParsingService().parse(data)
+    }
+    let recovered = try CSVParsingService().parseRecovering(data)
+    #expect(recovered.recordNumbers == [2, 4])
+    #expect(recovered.rejectedRecords == [3])
+    #expect(recovered.rows.map { $0["value"] } == ["12", "14"])
+}
+
+@Test func quoteInsideUnquotedFieldIsRejected() throws {
+    let data = Data("value,source\n1\"2,R1\n13,R1\n".utf8)
+    let recovered = try CSVParsingService().parseRecovering(data)
+    #expect(recovered.recordNumbers == [3])
+    #expect(recovered.rejectedRecords == [2])
+}
+
 @Test func recoveringCSVKeepsValidRecords() throws {
     let data = Data("timestamp,value,source\n2026-01-01T00:00:00Z,12,R1\nbad,row\n2026-01-01T00:01:00Z,13,R1\n\"unfinished".utf8)
     let parsed = try CSVParsingService().parseRecovering(data)

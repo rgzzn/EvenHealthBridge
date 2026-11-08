@@ -9,7 +9,7 @@ enum DiagnosticLoggingService {
 }
 
 enum ImportFormatVersion {
-    static let parser = 2
+    static let parser = 3
     static let mapping = 1
 }
 
