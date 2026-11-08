@@ -210,12 +210,21 @@ public struct MeasurementDeduplicator: Sendable {
 
     public func resolve(_ input: [HealthMeasurement]) -> [HealthMeasurement] {
         var seen: [String: HealthMeasurement] = [:]
+        var observedComponents: [String: [String: Decimal]] = [:]
         var conflictingIDs = Set<String>()
         for item in input {
             if let previous = seen[item.id] {
                 if !sameMeasurement(previous, item) { conflictingIDs.insert(item.id) }
+                for (key, value) in item.components {
+                    if let observed = observedComponents[item.id]?[key], observed != value {
+                        conflictingIDs.insert(item.id)
+                    } else {
+                        observedComponents[item.id, default: [:]][key] = value
+                    }
+                }
             } else {
                 seen[item.id] = item
+                observedComponents[item.id] = item.components
             }
         }
         let sessions = Array(Set(input.compactMap { item -> SleepInterval? in
@@ -271,7 +280,6 @@ public struct MeasurementDeduplicator: Sendable {
 
     private func sameMeasurement(_ lhs: HealthMeasurement, _ rhs: HealthMeasurement) -> Bool {
         lhs.kind == rhs.kind && lhs.timestamp == rhs.timestamp && lhs.value == rhs.value &&
-        lhs.components.allSatisfy { component in rhs.components[component.key].map { $0 == component.value } ?? true } &&
         lhs.originalUnit == rhs.originalUnit &&
         lhs.canonicalUnit == rhs.canonicalUnit && lhs.statistic == rhs.statistic &&
         lhs.intervalEnd == rhs.intervalEnd && lhs.sleepStage == rhs.sleepStage &&

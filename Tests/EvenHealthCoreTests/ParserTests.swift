@@ -95,6 +95,23 @@ import Testing
     #expect(result.map(\.validation) == [.ambiguousSemantics, .duplicate])
 }
 
+@Test func sparseFirstCalorieRowDoesNotHideLaterComponentConflict() {
+    let date = Date(timeIntervalSince1970: 1_000)
+    func calories(_ source: String, components: [String: Decimal]) -> HealthMeasurement {
+        HealthMeasurement(id: "same-calories", kind: .calories, timestamp: date,
+            originalTimestamp: "1970-01-01T00:16:40Z", source: source, value: 10,
+            components: components, originalUnit: nil, canonicalUnit: nil, statistic: nil,
+            intervalEnd: nil, sleepStage: nil, sessionEnd: nil, provenance: "calories.csv",
+            validation: .ambiguousSemantics)
+    }
+    let result = MeasurementDeduplicator().resolve([
+        calories("ring1Notify", components: [:]),
+        calories("R1", components: ["resting": 8, "active": 2]),
+        calories("R1", components: ["resting": 7, "active": 3])
+    ])
+    #expect(result.allSatisfy { $0.validation == .conflict })
+}
+
 @Test func sameIdentityWithDifferentValuesIsConflictForBothSources() {
     let date = Date(timeIntervalSince1970: 1_000)
     func step(_ value: Int, source: String) -> HealthMeasurement {

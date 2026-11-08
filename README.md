@@ -51,9 +51,9 @@ Il dataset reale è escluso da Git tramite `.gitignore`; per i test condivisi us
 
 La build e il lancio sono stati verificati su un simulatore iOS 27. La scrittura reale in Apple Salute, la firma per dispositivo e i permessi HealthKit vanno verificati su un iPhone fisico con un team di sviluppo configurato.
 
-I test iOS usano store SwiftData temporanei: verificano che un ID di fase sopravviva alla riapertura, che due analisi dello stesso ZIP producano due voci distinte e che la cronologia del primo schema resti leggibile dopo l'aggiunta del nuovo modello. Non eseguono una scrittura HealthKit reale.
+I test iOS usano store SwiftData temporanei: verificano che un ID di fase sopravviva alla riapertura, che due analisi dello stesso ZIP producano due voci distinte e che la cronologia del primo schema resti leggibile dopo l'aggiunta del nuovo modello. Un test aggiuntivo passa uno ZIP sintetico al coordinatore iOS e verifica l'analisi ripetuta. Non eseguono una scrittura HealthKit reale.
 
-L'apertura di un documento ZIP è stata provata sul simulatore con `Tests/Fixtures/sleep.csv` inserito in un archivio sintetico; l'anteprima è comparsa. La comparsa dell'app nel menu Condividi e il selettore Files su iPhone fisico restano da verificare.
+L'apertura di un documento ZIP dal menu Condividi o dal selettore Files non è stata verificata con un test end-to-end su iPhone fisico. Il test iOS copre l'analisi dello ZIP sintetico dopo la consegna del suo URL al coordinatore.
 
 Nell'app puoi annullare l'analisi di uno ZIP in corso. Dalle impostazioni puoi cancellare la cronologia delle analisi; gli ID dei campioni HealthKit restano conservati localmente per evitare nuove scritture duplicate.
 
