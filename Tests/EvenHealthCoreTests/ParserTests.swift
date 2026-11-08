@@ -16,6 +16,14 @@ import Testing
     }
 }
 
+@Test func recoveringCSVKeepsValidRecords() throws {
+    let data = Data("timestamp,value,source\n2026-01-01T00:00:00Z,12,R1\nbad,row\n2026-01-01T00:01:00Z,13,R1\n\"unfinished".utf8)
+    let parsed = try CSVParsingService().parseRecovering(data)
+    #expect(parsed.rows.count == 2)
+    #expect(parsed.recordNumbers == [2, 4])
+    #expect(parsed.rejectedRecords == [3, 5])
+}
+
 @Test func timestampsNormalizeOffsets() {
     let a = EvenDataParser.parseDate("2026-10-25T02:30:00+02:00")
     let b = EvenDataParser.parseDate("2026-10-25T02:30:00+01:00")

@@ -46,16 +46,24 @@ public struct EvenDataParser: Sendable {
         for (filename, kind) in fileKinds {
             try Task.checkCancellation()
             guard let data = contents[filename] else { warnings.append("File mancante: \(filename)"); continue }
-            let rows = try csv.parse(data)
+            let parsed: CSVParseResult
+            do { parsed = try csv.parseRecovering(data) }
+            catch {
+                warnings.append("\(filename): intestazione o codifica CSV non valida")
+                continue
+            }
+            warnings += parsed.rejectedRecords.map { "\(filename): record CSV \($0) scartato" }
+            let rows = parsed.rows
             for (index, row) in rows.enumerated() {
+                let recordNumber = parsed.recordNumbers[index]
                 if index.isMultiple(of: 256) { try Task.checkCancellation() }
                 if kind == .sleep {
                     do { measurements += try parseSleep(row) }
-                    catch { warnings.append("sleep.csv: sessione non valida alla riga \(index + 2)") }
+                    catch { warnings.append("sleep.csv: sessione non valida nel record \(recordNumber)") }
                     continue
                 }
                 guard let time = row["timestamp"], let date = Self.parseDate(time) else {
-                    warnings.append("\(filename): riga \(index + 2) con timestamp non valido")
+                    warnings.append("\(filename): record \(recordNumber) con timestamp non valido")
                     continue
                 }
                 let source = row["source"] ?? "unknown"

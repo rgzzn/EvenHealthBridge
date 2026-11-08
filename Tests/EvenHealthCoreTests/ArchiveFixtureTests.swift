@@ -87,3 +87,12 @@ private func withArchive(_ files: [String: String], body: (URL) throws -> Void) 
         #expect(dataset.measurements.allSatisfy { $0.validation == .conflict })
     }
 }
+
+@Test func malformedCSVRecordDoesNotDiscardOtherMeasurements() throws {
+    let file = "timestamp,value,source\n2026-01-01T00:00:00Z,12,R1\ninvalid,columns\n2026-01-01T00:01:00Z,13,R1\n"
+    try withArchive(["steps.csv": file]) { url in
+        let dataset = try EvenDataParser().parseArchive(at: url)
+        #expect(dataset.measurements.filter { $0.kind == .steps }.count == 2)
+        #expect(dataset.warnings.contains("steps.csv: record CSV 3 scartato"))
+    }
+}
