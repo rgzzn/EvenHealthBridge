@@ -74,3 +74,16 @@ private func withArchive(_ files: [String: String], body: (URL) throws -> Void) 
         #expect(throws: ZIPImportError.self) { try ZIPExtractionService().readCSV(at: url) }
     }
 }
+
+@Test func differingStageSequencesRejectEntireSession() throws {
+    let header = "timestamp,start_ts,end_ts,total_time,wake_time,rem_time,light_time,deep_time,stages,source,tz,body_temp_delta\n"
+    let prefix = "2026-01-01T00:00:00Z,2026-01-01T00:00:00Z,2026-01-01T00:01:00Z,60,0,0,60,0,"
+    let single = "\"[{\"\"type\"\":2,\"\"half_minutes\"\":2}]\""
+    let split = "\"[{\"\"type\"\":2,\"\"half_minutes\"\":1},{\"\"type\"\":2,\"\"half_minutes\"\":1}]\""
+    let file = header + prefix + single + ",R1,+00:00,\n" + prefix + split + ",ring1Notify,+00:00,\n"
+    try withArchive(["sleep.csv": file]) { url in
+        let dataset = try EvenDataParser().parseArchive(at: url)
+        #expect(dataset.measurements.count == 3)
+        #expect(dataset.measurements.allSatisfy { $0.validation == .conflict })
+    }
+}

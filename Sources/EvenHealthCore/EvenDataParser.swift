@@ -44,9 +44,11 @@ public struct EvenDataParser: Sendable {
         var measurements: [HealthMeasurement] = []
         var warnings: [String] = []
         for (filename, kind) in fileKinds {
+            try Task.checkCancellation()
             guard let data = contents[filename] else { warnings.append("File mancante: \(filename)"); continue }
             let rows = try csv.parse(data)
             for (index, row) in rows.enumerated() {
+                if index.isMultiple(of: 256) { try Task.checkCancellation() }
                 if kind == .sleep {
                     do { measurements += try parseSleep(row) }
                     catch { warnings.append("sleep.csv: sessione non valida alla riga \(index + 2)") }
@@ -93,7 +95,10 @@ public struct EvenDataParser: Sendable {
         let handle = try FileHandle(forReadingFrom: url)
         defer { try? handle.close() }
         var hasher = SHA256()
-        while let chunk = try handle.read(upToCount: 1_048_576), !chunk.isEmpty { hasher.update(data: chunk) }
+        while let chunk = try handle.read(upToCount: 1_048_576), !chunk.isEmpty {
+            try Task.checkCancellation()
+            hasher.update(data: chunk)
+        }
         return hasher.finalize().map { String(format: "%02x", $0) }.joined()
     }
 
@@ -157,13 +162,27 @@ public struct MeasurementDeduplicator: Sendable {
                 latest = session
             }
         }
+        var shapes: [SleepInterval: [String: [SleepStageShape]]] = [:]
+        for item in input where item.kind == .sleep {
+            guard let end = item.sessionEnd, let start = EvenDataParser.parseDate(item.originalTimestamp),
+                  let stageEnd = item.intervalEnd, let stage = item.sleepStage else { continue }
+            shapes[SleepInterval(start: start, end: end), default: [:]][item.source, default: []]
+                .append(SleepStageShape(start: item.timestamp, end: stageEnd, stage: stage))
+        }
+        let disagreements = Set(shapes.compactMap { session, bySource -> SleepInterval? in
+            let sequences = bySource.values.map { stages in
+                stages.sorted { $0.start < $1.start }
+            }
+            return Set(sequences).count > 1 ? session : nil
+        })
         return input.map { item in
             var result = item
             if let previous = seen[item.id] {
                 result.validation = previous.value == item.value && previous.intervalEnd == item.intervalEnd && previous.sleepStage == item.sleepStage ? .duplicate : .conflict
             } else { seen[item.id] = item }
-            if item.kind == .sleep, let end = item.sessionEnd, let start = EvenDataParser.parseDate(item.originalTimestamp), overlapping.contains(SleepInterval(start: start, end: end)) {
-                result.validation = .conflict
+            if item.kind == .sleep, let end = item.sessionEnd, let start = EvenDataParser.parseDate(item.originalTimestamp) {
+                let session = SleepInterval(start: start, end: end)
+                if overlapping.contains(session) || disagreements.contains(session) { result.validation = .conflict }
             }
             return result
         }
@@ -172,5 +191,11 @@ public struct MeasurementDeduplicator: Sendable {
     private struct SleepInterval: Hashable {
         let start: Date
         let end: Date
+    }
+
+    private struct SleepStageShape: Hashable {
+        let start: Date
+        let end: Date
+        let stage: Int
     }
 }

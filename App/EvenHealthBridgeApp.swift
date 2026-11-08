@@ -120,19 +120,28 @@ final class ImportCoordinator {
     var isWorking = false
     var persisted = false
     var writtenCount: Int?
+    var progress: (completed: Int, total: Int)?
 
     func analyze(_ url: URL) async {
         isWorking = true
         error = nil
         persisted = false
         writtenCount = nil
+        progress = nil
         defer { isWorking = false }
         let access = url.startAccessingSecurityScopedResource()
         defer { if access { url.stopAccessingSecurityScopedResource() } }
         do {
             let parser = EvenDataParser()
-            dataset = try await Task.detached(priority: .userInitiated) { try parser.parseArchive(at: url) }.value
+            let worker = Task.detached(priority: .userInitiated) { try parser.parseArchive(at: url) }
+            dataset = try await withTaskCancellationHandler {
+                try await worker.value
+            } onCancel: {
+                worker.cancel()
+            }
             DiagnosticLoggingService.logger.info("Archive analyzed; records: \(self.dataset?.measurements.count ?? 0, privacy: .public)")
+        } catch is CancellationError {
+            dataset = nil
         } catch {
             dataset = nil
             self.error = "Impossibile analizzare l'archivio: \(error.localizedDescription)"
@@ -145,7 +154,9 @@ final class ImportCoordinator {
         isWorking = true
         defer { isWorking = false }
         do {
-            writtenCount = try await SleepImportExecutor().run(dataset.measurements, writer: HealthKitService(), repository: SwiftDataSleepRepository(context: context))
+            writtenCount = try await SleepImportExecutor().run(dataset.measurements, writer: HealthKitService(), repository: SwiftDataSleepRepository(context: context)) { completed, total in
+                self.progress = (completed, total)
+            }
             try saveAnalysis(in: context)
             DiagnosticLoggingService.logger.info("Sleep import completed; written: \(self.writtenCount ?? 0, privacy: .public)")
         } catch {
@@ -214,101 +225,20 @@ struct EvenHealthBridgeApp: App {
 }
 
 struct RootView: View {
-    @State private var coordinator = ImportCoordinator()
-    @Environment(\.modelContext) private var context
-    @Query(sort: \StoredImportSession.importedAt, order: .reverse) private var sessions: [StoredImportSession]
-    @Query private var savedSamples: [StoredSample]
-    @State private var showImporter = false
-    @State private var includeSleep = true
-
     var body: some View {
         TabView {
             NavigationStack {
-                List {
-                    Section {
-                        Label("Dati elaborati sul dispositivo", systemImage: "lock.shield")
-                        if let latest = sessions.first {
-                            LabeledContent("Ultima analisi", value: latest.importedAt.formatted())
-                            LabeledContent("Record", value: "\(latest.records)")
-                        }
-                    }
-                    Section {
-                        Button("Seleziona archivio ZIP") { showImporter = true }
-                            .font(.headline)
-                        if coordinator.isWorking { ProgressView("Analisi in corso") }
-                        if let error = coordinator.error { Text(error).foregroundStyle(.red) }
-                    }
-                    if let dataset = coordinator.dataset { preview(dataset) }
-                }
-                .navigationTitle("Even Health Bridge")
-                .fileImporter(isPresented: $showImporter, allowedContentTypes: [.zip], allowsMultipleSelection: false) { result in
-                    switch result {
-                    case .success(let urls): if let url = urls.first { Task { await coordinator.analyze(url) } }
-                    case .failure(let error): coordinator.error = error.localizedDescription
-                    }
-                }
+                ImportView()
             }
             .tabItem { Label("Importa", systemImage: "square.and.arrow.down") }
-
             NavigationStack {
-                List(sessions) { session in
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(session.importedAt.formatted()).font(.headline)
-                        Text("\(session.records) record · \(session.duplicates) duplicati")
-                        Text(session.status).font(.caption).foregroundStyle(.secondary)
-                    }
-                }
-                .navigationTitle("Cronologia")
+                ImportHistoryView()
             }
             .tabItem { Label("Cronologia", systemImage: "clock") }
-
             NavigationStack {
-                Form {
-                    Section("Privacy") { Text("Gli archivi vengono letti localmente. Le misurazioni non vengono inviate a server.") }
-                    Section("Apple Salute") { Text("Le fasi del sonno sono importabili dopo la verifica delle durate. Le altre categorie richiedono chiarimenti sulla semantica dell'export.") }
-                    Section("Permessi") { NavigationLink("Stato autorizzazione Salute") { HealthPermissionsView() } }
-                }
-                .navigationTitle("Impostazioni")
+                SettingsView()
             }
             .tabItem { Label("Impostazioni", systemImage: "gear") }
-        }
-    }
-
-    @ViewBuilder
-    private func preview(_ dataset: ParsedDataset) -> some View {
-        let imported = savedSamples.map {
-            ImportedSleepSample(id: $0.stableID, start: $0.start, end: $0.end, sessionStart: $0.sessionStart, sessionEnd: $0.sessionEnd, stage: $0.stage)
-        }
-        let plan = SleepImportPlanner().plan(dataset.measurements, imported: imported)
-        Section("Anteprima") {
-            if let first = dataset.measurements.map(\.timestamp).min(), let last = dataset.measurements.map(\.timestamp).max() {
-                LabeledContent("Periodo", value: "\(first.formatted(date: .abbreviated, time: .omitted)) – \(last.formatted(date: .abbreviated, time: .omitted))")
-            }
-            ForEach(MeasurementKind.allCases, id: \.self) { kind in
-                let records = dataset.measurements.filter { $0.kind == kind }
-                VStack(alignment: .leading) {
-                    Text(kind.rawValue).font(.headline)
-                    Text("\(records.count) record · \(records.filter { $0.validation == .eligible }.count) importabili · \(records.filter { $0.validation == .duplicate }.count) duplicati · \(records.filter { $0.validation == .conflict }.count) conflitti")
-                        .font(.caption).foregroundStyle(.secondary)
-                }
-            }
-            ForEach(dataset.warnings, id: \.self) { warning in Text(warning).font(.caption) }
-            LabeledContent("Sonno nuovo", value: "\(plan.newSamples.count) fasi")
-            LabeledContent("Già importato", value: "\(plan.alreadyImported) fasi")
-            LabeledContent("Conflitti con importazioni precedenti", value: "\(plan.conflicts) fasi")
-            Text("Solo il sonno verificato è importabile in Apple Salute. Conferma l'operazione prima della richiesta di autorizzazione.")
-                .font(.footnote).foregroundStyle(.secondary)
-            Toggle("Includi il sonno", isOn: $includeSleep)
-            if let written = coordinator.writtenCount { Text("Nuovi campioni sonno scritti: \(written)") }
-            Button("Importa il sonno in Apple Salute") {
-                Task { await coordinator.importSleep(in: context) }
-            }
-            .disabled(coordinator.isWorking || !includeSleep || plan.newSamples.isEmpty)
-            Button(coordinator.persisted ? "Analisi registrata" : "Registra analisi") {
-                do { try coordinator.saveAnalysis(in: context) }
-                catch { coordinator.error = error.localizedDescription }
-            }
-            .disabled(coordinator.persisted)
         }
     }
 }

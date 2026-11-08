@@ -14,9 +14,10 @@ import Foundation
     public init() {}
 
     @discardableResult
-    public func run(_ measurements: [HealthMeasurement], writer: any SleepSampleWriting, repository: any SleepImportRecording) async throws -> Int {
+    public func run(_ measurements: [HealthMeasurement], writer: any SleepSampleWriting, repository: any SleepImportRecording, progress: (@MainActor (Int, Int) -> Void)? = nil) async throws -> Int {
         let plan = SleepImportPlanner().plan(measurements, imported: try repository.existingSamples())
         guard !plan.newSamples.isEmpty else { return 0 }
+        progress?(0, plan.newSamples.count)
         try await writer.authorize()
         var written = 0
         for sample in plan.newSamples {
@@ -24,6 +25,7 @@ import Foundation
             try await writer.save(sample)
             try repository.record(sample)
             written += 1
+            progress?(written, plan.newSamples.count)
         }
         return written
     }

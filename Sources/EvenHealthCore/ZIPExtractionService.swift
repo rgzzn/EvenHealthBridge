@@ -23,6 +23,7 @@ public struct ZIPExtractionService: Sendable {
         var result: [String: Data] = [:]
         var expanded: Int64 = 0
         for entry in archive {
+            try Task.checkCancellation()
             let parts = entry.path.split(separator: "/", omittingEmptySubsequences: false)
             guard !entry.path.hasPrefix("/"), !parts.contains(".."), !parts.contains("."), !entry.path.contains("\\") else { throw ZIPImportError.unsafeEntry }
             guard entry.type == .file, let filename = parts.last.map(String.init), allowed.contains(filename) else { continue }
@@ -31,6 +32,7 @@ public struct ZIPExtractionService: Sendable {
             expanded += Int64(entry.uncompressedSize)
             var bytes = Data()
             _ = try archive.extract(entry, bufferSize: 16_384) { chunk in
+                try Task.checkCancellation()
                 guard bytes.count + chunk.count <= maxEntryBytes else { throw ZIPImportError.archiveTooLarge }
                 bytes.append(chunk)
             }
