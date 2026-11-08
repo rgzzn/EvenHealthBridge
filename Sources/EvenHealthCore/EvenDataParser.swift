@@ -67,54 +67,57 @@ public struct EvenDataParser: Sendable {
     public init() {}
 
     public func parseArchive(at url: URL) throws -> ParsedDataset {
-        let contents = try zip.readCSV(at: url)
+        var contents = try zip.readCSV(at: url)
         var measurements: [HealthMeasurement] = []
         var warnings: [String] = []
+        var omittedWarnings = 0
+        func addWarning(_ message: String) {
+            if warnings.count < 100 { warnings.append(message) }
+            else { omittedWarnings += 1 }
+        }
         for (filename, kind) in fileKinds {
             try Task.checkCancellation()
-            guard let data = contents[filename] else { warnings.append("File mancante: \(filename)"); continue }
-            let parsed: CSVParseResult
-            do { parsed = try csv.parseRecovering(data) }
-            catch {
-                warnings.append("\(filename): intestazione o codifica CSV non valida")
-                continue
-            }
-            warnings += parsed.rejectedRecords.map { "\(filename): record CSV \($0) scartato" }
-            let rows = parsed.rows
-            for (index, row) in rows.enumerated() {
-                let recordNumber = parsed.recordNumbers[index]
-                if index.isMultiple(of: 256) { try Task.checkCancellation() }
-                if kind == .sleep {
-                    do { measurements += try parseSleep(row) }
-                    catch { warnings.append("sleep.csv: sessione non valida nel record \(recordNumber)") }
-                    continue
+            guard let data = contents.removeValue(forKey: filename) else { addWarning("File mancante: \(filename)"); continue }
+            do {
+                try csv.forEachRowRecovering(data, onRejected: { number in
+                    addWarning("\(filename): record CSV \(number) scartato")
+                }) { recordNumber, row in
+                    if recordNumber.isMultiple(of: 256) { try Task.checkCancellation() }
+                    if kind == .sleep {
+                        do { measurements += try parseSleep(row) }
+                        catch { addWarning("sleep.csv: sessione non valida nel record \(recordNumber)") }
+                        return
+                    }
+                    guard let time = row["timestamp"], let date = Self.parseDate(time) else {
+                        addWarning("\(filename): record \(recordNumber) con timestamp non valido")
+                        return
+                    }
+                    let source = row["source"] ?? "unknown"
+                    let statistic = row["ty"]
+                    let value = row["value"].flatMap { Decimal(string: $0, locale: Locale(identifier: "en_US_POSIX")) }
+                    let components: [String: Decimal] = kind == .calories
+                        ? Dictionary(uniqueKeysWithValues: ["resting", "active"].compactMap { key in
+                            row[key].flatMap { Decimal(string: $0, locale: Locale(identifier: "en_US_POSIX")) }.map { (key, $0) }
+                        }) : [:]
+                    var validation: ImportValidation = .ambiguousSemantics
+                    if kind != .sleep && value == nil { validation = .malformed }
+                    if kind == .calories && ["resting", "active"].contains(where: { key in
+                        guard let text = row[key], !text.isEmpty else { return false }
+                        return components[key] == nil
+                    }) { validation = .malformed }
+                    if let value, value < 0 { validation = .implausible }
+                    if kind == .oxygen, let value, (value < 0 || value > 100) { validation = .implausible }
+                    if kind == .heartRate, let value, (value < 20 || value > 250) { validation = .implausible }
+                    let end = row["end_ts"].flatMap(Self.parseDate)
+                    let identity = [kind.rawValue, String(date.timeIntervalSince1970), statistic ?? "", row["start_ts"] ?? "", row["end_ts"] ?? ""].joined(separator: "|")
+                    let id = SHA256.hash(data: Data(identity.utf8)).map { String(format: "%02x", $0) }.joined()
+                    measurements.append(.init(id: id, kind: kind, timestamp: date, originalTimestamp: time, source: source, value: value, components: components, originalUnit: nil, canonicalUnit: nil, statistic: statistic, intervalEnd: end, sleepStage: nil, sessionEnd: nil, provenance: filename, validation: validation))
                 }
-                guard let time = row["timestamp"], let date = Self.parseDate(time) else {
-                    warnings.append("\(filename): record \(recordNumber) con timestamp non valido")
-                    continue
-                }
-                let source = row["source"] ?? "unknown"
-                let statistic = row["ty"]
-                let value = row["value"].flatMap { Decimal(string: $0, locale: Locale(identifier: "en_US_POSIX")) }
-                let components: [String: Decimal] = kind == .calories
-                    ? Dictionary(uniqueKeysWithValues: ["resting", "active"].compactMap { key in
-                        row[key].flatMap { Decimal(string: $0, locale: Locale(identifier: "en_US_POSIX")) }.map { (key, $0) }
-                    }) : [:]
-                var validation: ImportValidation = .ambiguousSemantics
-                if kind != .sleep && value == nil { validation = .malformed }
-                if kind == .calories && ["resting", "active"].contains(where: { key in
-                    guard let text = row[key], !text.isEmpty else { return false }
-                    return components[key] == nil
-                }) { validation = .malformed }
-                if let value, value < 0 { validation = .implausible }
-                if kind == .oxygen, let value, (value < 0 || value > 100) { validation = .implausible }
-                if kind == .heartRate, let value, (value < 20 || value > 250) { validation = .implausible }
-                let end = row["end_ts"].flatMap(Self.parseDate)
-                let identity = [kind.rawValue, String(date.timeIntervalSince1970), statistic ?? "", row["start_ts"] ?? "", row["end_ts"] ?? ""].joined(separator: "|")
-                let id = SHA256.hash(data: Data(identity.utf8)).map { String(format: "%02x", $0) }.joined()
-                measurements.append(.init(id: id, kind: kind, timestamp: date, originalTimestamp: time, source: source, value: value, components: components, originalUnit: nil, canonicalUnit: nil, statistic: statistic, intervalEnd: end, sleepStage: nil, sessionEnd: nil, provenance: filename, validation: validation))
+            } catch is CSVError {
+                addWarning("\(filename): intestazione o codifica CSV non valida")
             }
         }
+        if omittedWarnings > 0 { warnings.append("Altri \(omittedWarnings) avvisi omessi; controlla la qualità dell'archivio.") }
         return .init(measurements: MeasurementDeduplicator().resolve(measurements), warnings: warnings, archiveHash: try hashFile(url))
     }
 

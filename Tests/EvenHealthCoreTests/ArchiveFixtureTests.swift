@@ -163,3 +163,13 @@ private func withArchive(_ files: [String: String], body: (URL) throws -> Void) 
         #expect(dataset.warnings.contains("steps.csv: record CSV 3 scartato"))
     }
 }
+
+@Test func malformedCSVWarningsAreBounded() throws {
+    let file = "timestamp,value,source\n" + Array(repeating: "bad,row\n", count: 150).joined()
+    try withArchive(["steps.csv": file]) { url in
+        let dataset = try EvenDataParser().parseArchive(at: url)
+        #expect(dataset.measurements.isEmpty)
+        #expect(dataset.warnings.count == 101)
+        #expect(dataset.warnings.last?.contains("Altri 56 avvisi omessi") == true)
+    }
+}

@@ -19,52 +19,76 @@ public struct CSVParsingService: Sendable {
 
     /// RFC 4180 style parser. Keeps embedded commas, quotes and line breaks inside quoted fields.
     public func parse(_ data: Data) throws -> [[String: String]] {
-        let (records, unterminated) = try tokenize(data)
-        if unterminated { throw CSVError.unterminatedQuote }
-        guard let header = records.first else { return [] }
-        try validateHeader(header)
-        return try records.dropFirst().enumerated().map { offset, fields in
-            guard fields.count == header.count else { throw CSVError.inconsistentColumns(row: offset + 2) }
-            return Dictionary(uniqueKeysWithValues: zip(header, fields))
+        var header: [String]?
+        var rows: [[String: String]] = []
+        var firstInvalidRow: Int?
+        let unfinished = try visitRecords(data) { number, fields in
+            if let header {
+                if fields.count == header.count {
+                    rows.append(Dictionary(uniqueKeysWithValues: zip(header, fields)))
+                } else if firstInvalidRow == nil {
+                    firstInvalidRow = number
+                }
+            } else {
+                try validateHeader(fields)
+                header = fields
+            }
         }
+        if unfinished != nil { throw CSVError.unterminatedQuote }
+        if let firstInvalidRow { throw CSVError.inconsistentColumns(row: firstInvalidRow) }
+        return rows
     }
 
     /// Preserves valid records around incomplete or malformed records without guessing missing fields.
     public func parseRecovering(_ data: Data) throws -> CSVParseResult {
-        let (records, unterminated) = try tokenize(data)
-        guard let header = records.first else {
-            return CSVParseResult(rows: [], recordNumbers: [], rejectedRecords: unterminated ? [1] : [])
-        }
-        try validateHeader(header)
         var rows: [[String: String]] = []
         var recordNumbers: [Int] = []
         var rejected: [Int] = []
-        for (offset, fields) in records.dropFirst().enumerated() {
-            if fields.count == header.count {
-                rows.append(Dictionary(uniqueKeysWithValues: zip(header, fields)))
-                recordNumbers.append(offset + 2)
+        try forEachRowRecovering(data, onRejected: { rejected.append($0) }) { number, row in
+            rows.append(row)
+            recordNumbers.append(number)
+        }
+        return CSVParseResult(rows: rows, recordNumbers: recordNumbers, rejectedRecords: rejected)
+    }
+
+    /// Visits one CSV row at a time. Callers can retain only normalized measurements and bounded diagnostics.
+    public func forEachRowRecovering(_ data: Data, onRejected: (Int) throws -> Void,
+                                     onRow: (Int, [String: String]) throws -> Void) throws {
+        var header: [String]?
+        let unfinished = try visitRecords(data) { number, fields in
+            if let header {
+                if fields.count == header.count {
+                    try onRow(number, Dictionary(uniqueKeysWithValues: zip(header, fields)))
+                } else {
+                    try onRejected(number)
+                }
             } else {
-                rejected.append(offset + 2)
+                try validateHeader(fields)
+                header = fields
             }
         }
-        if unterminated { rejected.append(records.count + 1) }
-        return CSVParseResult(rows: rows, recordNumbers: recordNumbers, rejectedRecords: rejected)
+        if let unfinished { try onRejected(unfinished) }
     }
 
     private func validateHeader(_ header: [String]) throws {
         guard Set(header).count == header.count else { throw CSVError.duplicateHeader }
     }
 
-    private func tokenize(_ data: Data) throws -> ([[String]], Bool) {
+    /// Returns the number of an incomplete final record, if a quote remains open at EOF.
+    private func visitRecords(_ data: Data, _ onRecord: (Int, [String]) throws -> Void) throws -> Int? {
         guard var input = String(data: data, encoding: .utf8) else { throw CSVError.invalidEncoding }
-        if input.hasPrefix("\u{FEFF}") { input.removeFirst() }
+        // Swift treats CRLF as one Character; normalize it before scanning by Character.
         input = input.replacingOccurrences(of: "\r\n", with: "\n")
-        var records: [[String]] = []
+        var index = input.startIndex
+        if index < input.endIndex && input[index] == "\u{FEFF}" { index = input.index(after: index) }
+        var recordNumber = 1
         var row: [String] = []
         var field = ""
         var quoted = false
-        var index = input.startIndex
+        var scanned = 0
         while index < input.endIndex {
+            if scanned.isMultiple(of: 16_384) { try Task.checkCancellation() }
+            scanned += 1
             let ch = input[index]
             let next = input.index(after: index)
             if quoted {
@@ -73,24 +97,30 @@ public struct CSVParsingService: Sendable {
                         field.append("\"")
                         index = next
                     } else { quoted = false }
-                } else { field.append(ch) }
+                } else {
+                    field.append(ch)
+                }
             } else {
                 switch ch {
                 case "\"" where field.isEmpty: quoted = true
                 case ",": row.append(field); field = ""
                 case "\n":
-                    row.append(field); records.append(row); row = []; field = ""
+                    row.append(field)
+                    try onRecord(recordNumber, row)
+                    recordNumber += 1
+                    row.removeAll(keepingCapacity: true)
+                    field.removeAll(keepingCapacity: true)
                 case "\r": break
                 default: field.append(ch)
                 }
             }
             index = input.index(after: index)
         }
-        if quoted { return (records, true) }
+        if quoted { return recordNumber }
         if !row.isEmpty || !field.isEmpty {
             row.append(field)
-            records.append(row)
+            try onRecord(recordNumber, row)
         }
-        return (records, false)
+        return nil
     }
 }

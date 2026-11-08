@@ -24,6 +24,23 @@ import Testing
     #expect(parsed.rejectedRecords == [3, 5])
 }
 
+@Test func streamingCSVVisitsLargeFixtureWithoutCollectingRows() throws {
+    let count = 10_000
+    let csv = "timestamp,value,source\n" +
+        (0..<count).map { "2026-01-01T00:00:00Z,\($0),R1\n" }.joined()
+    var visited = 0
+    var rejected: [Int] = []
+    try CSVParsingService().forEachRowRecovering(Data(csv.utf8), onRejected: { rejected.append($0) }) { number, row in
+        if visited == 0 || visited == count - 1 {
+            #expect(number == visited + 2)
+            #expect(row["source"] == "R1")
+        }
+        visited += 1
+    }
+    #expect(visited == count)
+    #expect(rejected.isEmpty)
+}
+
 @Test func timestampsNormalizeOffsets() {
     let a = EvenDataParser.parseDate("2026-10-25T02:30:00+02:00")
     let b = EvenDataParser.parseDate("2026-10-25T02:30:00+01:00")
