@@ -9,6 +9,17 @@ public enum ImportValidation: String, Sendable, Codable {
     case eligible, ambiguousSemantics, malformed, implausible, duplicate, conflict
 }
 
+public enum EvenParserError: LocalizedError, Equatable {
+    case tooManyMeasurements(limit: Int)
+
+    public var errorDescription: String? {
+        switch self {
+        case .tooManyMeasurements(let limit):
+            "L'archivio contiene più di \(limit) misurazioni. Importazione interrotta per proteggere la memoria del dispositivo."
+        }
+    }
+}
+
 public struct HealthMeasurement: Sendable, Codable, Identifiable {
     public let id: String
     public let kind: MeasurementKind
@@ -64,7 +75,8 @@ public struct EvenDataParser: Sendable {
     private enum SleepParseError: Error { case invalidSession }
     private let csv = CSVParsingService()
     private let zip = ZIPExtractionService()
-    public init() {}
+    public let maxMeasurements: Int
+    public init(maxMeasurements: Int = 100_000) { self.maxMeasurements = max(1, maxMeasurements) }
 
     public func parseArchive(at url: URL) throws -> ParsedDataset {
         var measurements: [HealthMeasurement] = []
@@ -84,8 +96,16 @@ public struct EvenDataParser: Sendable {
                 }) { recordNumber, row in
                     if recordNumber.isMultiple(of: 256) { try Task.checkCancellation() }
                     if kind == .sleep {
-                        do { measurements += try parseSleep(row) }
-                        catch { addWarning("sleep.csv: sessione non valida nel record \(recordNumber)") }
+                        let stages: [HealthMeasurement]
+                        do { stages = try parseSleep(row) }
+                        catch {
+                            addWarning("sleep.csv: sessione non valida nel record \(recordNumber)")
+                            return
+                        }
+                        guard stages.count <= maxMeasurements - measurements.count else {
+                            throw EvenParserError.tooManyMeasurements(limit: maxMeasurements)
+                        }
+                        measurements += stages
                         return
                     }
                     guard let time = row["timestamp"], let date = Self.parseDate(time) else {
@@ -111,6 +131,9 @@ public struct EvenDataParser: Sendable {
                     let end = row["end_ts"].flatMap(Self.parseDate)
                     let identity = [kind.rawValue, String(date.timeIntervalSince1970), statistic ?? "", row["start_ts"] ?? "", row["end_ts"] ?? ""].joined(separator: "|")
                     let id = SHA256.hash(data: Data(identity.utf8)).map { String(format: "%02x", $0) }.joined()
+                    guard measurements.count < maxMeasurements else {
+                        throw EvenParserError.tooManyMeasurements(limit: maxMeasurements)
+                    }
                     measurements.append(.init(id: id, kind: kind, timestamp: date, originalTimestamp: time, source: source, value: value, components: components, originalUnit: nil, canonicalUnit: nil, statistic: statistic, intervalEnd: end, sleepStage: nil, sessionEnd: nil, provenance: filename, validation: validation))
                 }
             } catch is CSVError {

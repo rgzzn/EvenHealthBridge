@@ -174,3 +174,26 @@ private func withArchive(_ files: [String: String], body: (URL) throws -> Void) 
         #expect(dataset.warnings.last?.contains("Altri 56 avvisi omessi") == true)
     }
 }
+
+@Test func tooManyCSVMeasurementsStopsBeforePreview() throws {
+    let file = "timestamp,value,source\n" +
+        "2026-01-01T00:00:00Z,1,R1\n" +
+        "2026-01-01T00:01:00Z,2,R1\n" +
+        "2026-01-01T00:02:00Z,3,R1\n"
+    try withArchive(["steps.csv": file]) { url in
+        #expect(throws: EvenParserError.tooManyMeasurements(limit: 2)) {
+            try EvenDataParser(maxMeasurements: 2).parseArchive(at: url)
+        }
+    }
+}
+
+@Test func sleepStageExpansionRespectsMeasurementLimit() throws {
+    let header = "timestamp,start_ts,end_ts,total_time,wake_time,rem_time,light_time,deep_time,stages,source,tz,body_temp_delta\n"
+    let stages = "\"[{\"\"type\"\":2,\"\"half_minutes\"\":1},{\"\"type\"\":2,\"\"half_minutes\"\":1}]\""
+    let row = "2026-01-01T00:00:00Z,2026-01-01T00:00:00Z,2026-01-01T00:01:00Z,60,0,0,60,0,\(stages),R1,+00:00,\n"
+    try withArchive(["sleep.csv": header + row]) { url in
+        #expect(throws: EvenParserError.tooManyMeasurements(limit: 1)) {
+            try EvenDataParser(maxMeasurements: 1).parseArchive(at: url)
+        }
+    }
+}
