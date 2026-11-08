@@ -2,6 +2,7 @@ import Foundation
 
 @MainActor public protocol SleepSampleWriting {
     func authorize() async throws
+    func alreadySaved(_ sample: HealthMeasurement) async throws -> Bool
     func save(_ sample: HealthMeasurement) async throws
 }
 
@@ -20,12 +21,16 @@ import Foundation
         progress?(0, plan.newSamples.count)
         try await writer.authorize()
         var written = 0
-        for sample in plan.newSamples {
+        for (index, sample) in plan.newSamples.enumerated() {
             try Task.checkCancellation()
-            try await writer.save(sample)
+            let alreadySaved = try await writer.alreadySaved(sample)
+            try Task.checkCancellation()
+            if !alreadySaved {
+                try await writer.save(sample)
+                written += 1
+            }
             try repository.record(sample)
-            written += 1
-            progress?(written, plan.newSamples.count)
+            progress?(index + 1, plan.newSamples.count)
         }
         return written
     }

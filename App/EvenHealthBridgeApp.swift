@@ -63,24 +63,47 @@ final class StoredSample {
 
     func authorize() async throws {
         guard HKHealthStore.isHealthDataAvailable() else { throw ImportFailure.healthUnavailable }
-        let type = HKObjectType.categoryType(forIdentifier: .sleepAnalysis)!
-        try await store.requestAuthorization(toShare: [type], read: [])
+        guard let type = HKObjectType.categoryType(forIdentifier: .sleepAnalysis) else { throw ImportFailure.healthUnavailable }
+        try await store.requestAuthorization(toShare: [type], read: [type])
         guard store.authorizationStatus(for: type) == .sharingAuthorized else { throw ImportFailure.permissionDenied }
     }
 
+    func alreadySaved(_ item: HealthMeasurement) async throws -> Bool {
+        guard let type = HKObjectType.categoryType(forIdentifier: .sleepAnalysis),
+              let end = item.intervalEnd else { throw ImportFailure.invalidSample }
+        let ownSource = HKQuery.predicateForObjects(from: HKSource.default())
+        let identifier = HKQuery.predicateForObjects(withMetadataKey: HKMetadataKeySyncIdentifier, allowedValues: [item.id])
+        let predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [ownSource, identifier])
+        let descriptor = HKSampleQueryDescriptor(
+            predicates: [.categorySample(type: type, predicate: predicate)],
+            sortDescriptors: [], limit: 2
+        )
+        let matches = try await descriptor.result(for: store)
+        guard matches.count <= 1 else { throw ImportFailure.conflictingSavedSample }
+        guard let match = matches.first else { return false }
+        let expectedValue = try sleepValue(for: item).rawValue
+        guard match.startDate == item.timestamp, match.endDate == end,
+              match.value == expectedValue else { throw ImportFailure.conflictingSavedSample }
+        return true
+    }
+
     func save(_ item: HealthMeasurement) async throws {
-        guard let end = item.intervalEnd, let stage = item.sleepStage,
+        guard let end = item.intervalEnd,
               let type = HKObjectType.categoryType(forIdentifier: .sleepAnalysis) else { throw ImportFailure.invalidSample }
-        let value: HKCategoryValueSleepAnalysis
-        switch stage {
-        case 0: value = .awake
-        case 1: value = .asleepREM
-        case 2: value = .asleepCore
-        case 3: value = .asleepDeep
-        default: throw ImportFailure.invalidSample
-        }
+        let value = try sleepValue(for: item)
         let sample = HKCategorySample(type: type, value: value.rawValue, start: item.timestamp, end: end, metadata: [HKMetadataKeySyncIdentifier: item.id, HKMetadataKeySyncVersion: 1, "EvenHealthBridgeSource": item.source])
         try await store.save(sample)
+    }
+
+    private func sleepValue(for item: HealthMeasurement) throws -> HKCategoryValueSleepAnalysis {
+        guard let stage = item.sleepStage else { throw ImportFailure.invalidSample }
+        switch stage {
+        case 0: return .awake
+        case 1: return .asleepREM
+        case 2: return .asleepCore
+        case 3: return .asleepDeep
+        default: throw ImportFailure.invalidSample
+        }
     }
 }
 
@@ -103,13 +126,14 @@ final class StoredSample {
 }
 
 enum ImportFailure: LocalizedError {
-    case healthUnavailable, permissionDenied, invalidSample, unreadableArchive
+    case healthUnavailable, permissionDenied, invalidSample, unreadableArchive, conflictingSavedSample
     var errorDescription: String? {
         switch self {
         case .healthUnavailable: "Apple Salute non è disponibile su questo dispositivo."
         case .permissionDenied: "Autorizzazione alla scrittura del sonno non concessa."
         case .invalidSample: "Campione di sonno non valido."
         case .unreadableArchive: "Impossibile leggere il file selezionato."
+        case .conflictingSavedSample: "In Apple Salute esiste già un campione con lo stesso identificativo ma dati diversi. Importazione interrotta."
         }
     }
 }

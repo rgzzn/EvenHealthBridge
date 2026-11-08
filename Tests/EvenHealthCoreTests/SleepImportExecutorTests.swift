@@ -8,8 +8,13 @@ import Testing
     var saved: [String] = []
     var failAfter: Int?
     var cancelAfterFirstSave = false
+    var queryFails = false
 
     func authorize() async throws { authorizationCalls += 1 }
+    func alreadySaved(_ sample: HealthMeasurement) async throws -> Bool {
+        if queryFails { throw Failure.interrupted }
+        return saved.contains(sample.id)
+    }
     func save(_ sample: HealthMeasurement) async throws {
         if let failAfter, saved.count >= failAfter { throw Failure.interrupted }
         saved.append(sample.id)
@@ -20,9 +25,15 @@ import Testing
 }
 
 @MainActor private final class FakeRepository: SleepImportRecording {
+    enum Failure: Error { case diskWrite }
     var stored: [ImportedSleepSample] = []
+    var failRecordOnce = false
     func existingSamples() throws -> [ImportedSleepSample] { stored }
     func record(_ sample: HealthMeasurement) throws {
+        if failRecordOnce {
+            failRecordOnce = false
+            throw Failure.diskWrite
+        }
         stored.append(ImportedSleepSample(id: sample.id, start: sample.timestamp, end: sample.intervalEnd!, sessionStart: EvenDataParser.parseDate(sample.originalTimestamp)!, sessionEnd: sample.sessionEnd!, stage: sample.sleepStage!))
     }
 }
@@ -70,5 +81,49 @@ private func sample(_ id: String, start: TimeInterval, end: TimeInterval) -> Hea
         Issue.record("Expected cancellation")
     } catch is CancellationError { }
     catch { Issue.record("Unexpected error: \(error)") }
+    #expect(repository.stored.map(\.id) == ["a"])
+}
+
+@MainActor @Test func executorRecoversHealthKitSaveWithoutLocalRecord() async throws {
+    let writer = FakeWriter()
+    writer.saved = ["a"]
+    let repository = FakeRepository()
+    let input = [sample("a", start: 0, end: 60), sample("b", start: 60, end: 120)]
+    let written = try await SleepImportExecutor().run(input, writer: writer, repository: repository)
+    #expect(written == 1)
+    #expect(writer.saved == ["a", "b"])
+    #expect(repository.stored.map(\.id) == ["a", "b"])
+    #expect(try await SleepImportExecutor().run(input, writer: writer, repository: repository) == 0)
+}
+
+@MainActor @Test func executorStopsBeforeSavingWhenHealthKitLookupFails() async {
+    let writer = FakeWriter()
+    writer.queryFails = true
+    let repository = FakeRepository()
+    let input = [sample("a", start: 0, end: 60)]
+    do {
+        _ = try await SleepImportExecutor().run(input, writer: writer, repository: repository)
+        Issue.record("Expected query failure")
+    } catch FakeWriter.Failure.interrupted { }
+    catch { Issue.record("Unexpected error: \(error)") }
+    #expect(writer.saved.isEmpty)
+    #expect(repository.stored.isEmpty)
+}
+
+@MainActor @Test func executorReconcilesAfterLocalRecordFailure() async throws {
+    let writer = FakeWriter()
+    let repository = FakeRepository()
+    repository.failRecordOnce = true
+    let input = [sample("a", start: 0, end: 60)]
+    do {
+        _ = try await SleepImportExecutor().run(input, writer: writer, repository: repository)
+        Issue.record("Expected disk write failure")
+    } catch FakeRepository.Failure.diskWrite { }
+    #expect(writer.saved == ["a"])
+    #expect(repository.stored.isEmpty)
+
+    let written = try await SleepImportExecutor().run(input, writer: writer, repository: repository)
+    #expect(written == 0)
+    #expect(writer.saved == ["a"])
     #expect(repository.stored.map(\.id) == ["a"])
 }

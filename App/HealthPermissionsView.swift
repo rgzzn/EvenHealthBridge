@@ -8,7 +8,7 @@ struct HealthPermissionsView: View {
         Form {
             Section("Autorizzazione sonno") {
                 LabeledContent("Scrittura", value: status)
-                Text("L'autorizzazione viene richiesta quando confermi l'importazione. L'app non richiede accesso in lettura ai dati di altre app.")
+                Text("Quando confermi l'importazione, l'app chiede accesso al sonno in lettura e scrittura. Interroga soltanto i campioni che ha creato per evitare duplicati dopo un'interruzione.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
                 Button("Aggiorna stato") { refresh() }
