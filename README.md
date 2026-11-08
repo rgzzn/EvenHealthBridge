@@ -29,7 +29,7 @@ Passi, calorie, frequenza cardiaca, HRV, SpO₂ e temperatura sono visibili nell
 
 La deduplicazione usa ID stabili tra sorgenti e importazioni; confronta anche le componenti `resting` e `active` delle calorie e segnala come conflitto tutte le righe con lo stesso ID ma contenuto discordante. HealthKit riceve anche sync identifier/version. Il piano confronta le sessioni con i campioni locali già scritti: una seconda importazione dello stesso archivio produce zero nuovi campioni; una sessione che si sovrappone a una precedente viene esclusa. Prima di ogni nuova scrittura, l'app cerca l'ID tra i campioni di sonno creati da sé in HealthKit. Se un'interruzione è avvenuta dopo il salvataggio in Salute ma prima della registrazione locale, recupera l'ID senza riscrivere il campione. Se la verifica non riesce o trova dati discordanti, interrompe l'importazione. L'app non legge, elimina o modifica campioni di altre app.
 
-La richiesta di autorizzazione al momento dell'importazione comprende lettura e scrittura del solo tipo sonno. La query è limitata ai campioni creati da Even Health Bridge; [Apple documenta](https://developer.apple.com/documentation/healthkit/authorizing-access-to-health-data) che questi restano visibili all'app anche quando l'accesso in lettura ai dati di altre sorgenti è negato.
+La richiesta di autorizzazione al momento dell'importazione comprende lettura e scrittura del solo tipo sonno. La query usa [la sorgente dell'app](https://developer.apple.com/documentation/healthkit/hksource/default%28%29) per limitarsi ai campioni creati da Even Health Bridge; [Apple documenta](https://developer.apple.com/documentation/healthkit/authorizing-access-to-health-data) che questi restano visibili all'app anche quando l'accesso in lettura ai dati di altre sorgenti è negato. Ogni campione porta [identificativo e versione di sincronizzazione](https://developer.apple.com/documentation/healthkit/hkmetadatakeysyncidentifier).
 
 I log diagnostici contengono solo conteggi ed eventi, senza valori biometrici. Le colonne `resting` e `active` delle calorie vengono conservate nell'analisi in memoria, ma non ricevono un mapping HealthKit senza verifica dell'intervallo.
 
@@ -50,6 +50,8 @@ EVEN_HEALTH_LOCAL_ARCHIVE=/percorso/privato/Even_health_data_20261108.zip swift 
 Il dataset reale è escluso da Git tramite `.gitignore`; per i test condivisi usare solo fixture sintetiche.
 
 La build e il lancio sono stati verificati su un simulatore iOS 27. La scrittura reale in Apple Salute, la firma per dispositivo e i permessi HealthKit vanno verificati su un iPhone fisico con un team di sviluppo configurato.
+
+L'anteprima sintetica è stata controllata nel simulatore in Dark Mode con testo alla dimensione `accessibility-large`: titoli, conteggi, avvisi e pulsanti restano leggibili e raggiungibili scorrendo. L'aspetto e la dimensione del testo del simulatore sono stati poi ripristinati.
 
 I test iOS usano store SwiftData temporanei: verificano che un ID di fase sopravviva alla riapertura, che due analisi dello stesso ZIP producano due voci distinte e che la cronologia del primo schema resti leggibile dopo l'aggiunta del nuovo modello. Un test aggiuntivo passa uno ZIP sintetico al coordinatore iOS e verifica l'analisi ripetuta. Non eseguono una scrittura HealthKit reale.
 
