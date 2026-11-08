@@ -1,0 +1,6 @@
+# Local macOS metadata
+.DS_Store
+
+# Real health-data exports (keep local; never commit)
+Even_health_data_*.zip
+
