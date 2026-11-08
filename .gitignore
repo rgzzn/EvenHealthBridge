@@ -7,4 +7,6 @@ Even_health_data_*.zip
 # Build artifacts
 .build/
 DerivedData/
+*.xcuserstate
+xcuserdata/
 

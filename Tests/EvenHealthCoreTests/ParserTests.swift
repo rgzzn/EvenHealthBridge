@@ -25,8 +25,8 @@ import Testing
 
 @Test func duplicateSourceValuesCompareNumerically() {
     let date = Date(timeIntervalSince1970: 1_000)
-    let first = HealthMeasurement(id: "stable", kind: .steps, timestamp: date, originalTimestamp: "1970-01-01T00:16:40Z", source: "R1", value: Decimal(string: "46"), originalUnit: nil, canonicalUnit: nil, statistic: nil, intervalEnd: nil, sleepStage: nil, sessionEnd: nil, provenance: "steps.csv", validation: .ambiguousSemantics)
-    let second = HealthMeasurement(id: "stable", kind: .steps, timestamp: date, originalTimestamp: "1970-01-01T00:16:40+00:00", source: "ring1Notify", value: Decimal(string: "46.0"), originalUnit: nil, canonicalUnit: nil, statistic: nil, intervalEnd: nil, sleepStage: nil, sessionEnd: nil, provenance: "steps.csv", validation: .ambiguousSemantics)
+    let first = HealthMeasurement(id: "stable", kind: .steps, timestamp: date, originalTimestamp: "1970-01-01T00:16:40Z", source: "R1", value: Decimal(string: "46"), components: [:], originalUnit: nil, canonicalUnit: nil, statistic: nil, intervalEnd: nil, sleepStage: nil, sessionEnd: nil, provenance: "steps.csv", validation: .ambiguousSemantics)
+    let second = HealthMeasurement(id: "stable", kind: .steps, timestamp: date, originalTimestamp: "1970-01-01T00:16:40+00:00", source: "ring1Notify", value: Decimal(string: "46.0"), components: [:], originalUnit: nil, canonicalUnit: nil, statistic: nil, intervalEnd: nil, sleepStage: nil, sessionEnd: nil, provenance: "steps.csv", validation: .ambiguousSemantics)
     let result = MeasurementDeduplicator().resolve([first, second])
     #expect(result[1].validation == .duplicate)
 }

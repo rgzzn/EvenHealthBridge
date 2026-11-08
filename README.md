@@ -5,11 +5,11 @@ App iPhone locale per analizzare gli export ZIP di Even Realities R1 e importare
 ## Avvio
 
 1. Apri `EvenHealthBridge.xcodeproj` con Xcode 27.
-2. Seleziona un team di firma per il target `EvenHealthBridge` e abilita la capability HealthKit. Il file di entitlements e le descrizioni d'uso sono già presenti.
+2. Seleziona un team di firma per il target `EvenHealthBridge` e abilita le capability HealthKit e Data Protection. Il file di entitlements e le descrizioni d'uso sono già presenti.
 3. Compila su un iPhone con iOS 27. HealthKit può non essere disponibile nel simulatore.
 4. Esporta lo ZIP dall'app Even Realities, tocca **Seleziona archivio ZIP**, controlla l'anteprima e scegli **Importa il sonno in Apple Salute**. La richiesta di autorizzazione compare solo a quel punto.
 
-L'app legge lo ZIP tramite Files e security scoped URL. Non conserva una copia dell'archivio. Le sessioni e gli identificativi dei campioni salvati restano in SwiftData sul dispositivo. Nessun server, account o analytics.
+L'app legge lo ZIP tramite Files e security scoped URL. Non conserva una copia dell'archivio. Le sessioni e gli identificativi dei campioni salvati restano in SwiftData sul dispositivo, con CloudKit disabilitato esplicitamente e protezione dati iOS completa. Nessun server, account o analytics.
 
 ## Dati e limiti
 
@@ -17,7 +17,9 @@ Il parser legge tutti e sette i CSV; i dettagli dello schema sono in [Docs/Datas
 
 Passi, calorie, frequenza cardiaca, HRV, SpO₂ e temperatura sono visibili nell'anteprima ma esclusi dalla scrittura: l'export non fornisce ancora le unità e/o gli intervalli o il significato statistico necessari per un mapping sicuro. In particolare HRV non specifica SDNN, e min/max/avg non sono tre campioni distinti. Un aggiornamento futuro richiederà documentazione attendibile e test dedicati.
 
-La deduplicazione usa ID stabili tra sorgenti e importazioni; HealthKit riceve anche sync identifier/version. Una seconda importazione dello stesso archivio non deve creare nuovi campioni. L'app non legge, elimina o modifica campioni di altre app.
+La deduplicazione usa ID stabili tra sorgenti e importazioni; HealthKit riceve anche sync identifier/version. Il piano confronta le sessioni con i campioni locali già scritti: una seconda importazione dello stesso archivio produce zero nuovi campioni; una sessione che si sovrappone a una precedente viene esclusa. Un'importazione interrotta registra i campioni già salvati e può riprendere. L'app non legge, elimina o modifica campioni di altre app.
+
+I log diagnostici contengono solo conteggi ed eventi, senza valori biometrici. Le colonne `resting` e `active` delle calorie vengono conservate nell'analisi in memoria, ma non ricevono un mapping HealthKit senza verifica dell'intervallo.
 
 ## Verifiche
 
@@ -33,3 +35,5 @@ EVEN_HEALTH_LOCAL_ARCHIVE=/percorso/privato/Even_health_data_20261108.zip swift 
 ```
 
 Il dataset reale è escluso da Git tramite `.gitignore`; per i test condivisi usare solo fixture sintetiche.
+
+La build e il lancio sono stati verificati su un simulatore iOS 27. La scrittura reale in Apple Salute, la firma per dispositivo e i permessi HealthKit vanno verificati su un iPhone fisico con un team di sviluppo configurato.

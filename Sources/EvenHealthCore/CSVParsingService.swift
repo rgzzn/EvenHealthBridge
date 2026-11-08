@@ -4,6 +4,7 @@ public enum CSVError: Error, Equatable {
     case unterminatedQuote
     case inconsistentColumns(row: Int)
     case invalidEncoding
+    case duplicateHeader
 }
 
 public struct CSVParsingService: Sendable {
@@ -47,6 +48,7 @@ public struct CSVParsingService: Sendable {
             records.append(row)
         }
         guard let header = records.first else { return [] }
+        guard Set(header).count == header.count else { throw CSVError.duplicateHeader }
         return try records.dropFirst().enumerated().map { offset, fields in
             guard fields.count == header.count else { throw CSVError.inconsistentColumns(row: offset + 2) }
             return Dictionary(uniqueKeysWithValues: zip(header, fields))

@@ -8,6 +8,6 @@ let package = Package(
     dependencies: [.package(url: "https://github.com/weichsel/ZIPFoundation.git", from: "0.9.0")],
     targets: [
         .target(name: "EvenHealthCore", dependencies: ["ZIPFoundation"]),
-        .testTarget(name: "EvenHealthCoreTests", dependencies: ["EvenHealthCore"])
+        .testTarget(name: "EvenHealthCoreTests", dependencies: ["EvenHealthCore", "ZIPFoundation"])
     ]
 )

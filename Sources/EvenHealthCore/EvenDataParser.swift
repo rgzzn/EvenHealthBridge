@@ -16,6 +16,7 @@ public struct HealthMeasurement: Sendable, Codable, Identifiable {
     public let originalTimestamp: String
     public let source: String
     public let value: Decimal?
+    public let components: [String: Decimal]
     public let originalUnit: String?
     public let canonicalUnit: String?
     public let statistic: String?
@@ -58,15 +59,23 @@ public struct EvenDataParser: Sendable {
                 let source = row["source"] ?? "unknown"
                 let statistic = row["ty"]
                 let value = row["value"].flatMap { Decimal(string: $0, locale: Locale(identifier: "en_US_POSIX")) }
+                let components: [String: Decimal] = kind == .calories
+                    ? Dictionary(uniqueKeysWithValues: ["resting", "active"].compactMap { key in
+                        row[key].flatMap { Decimal(string: $0, locale: Locale(identifier: "en_US_POSIX")) }.map { (key, $0) }
+                    }) : [:]
                 var validation: ImportValidation = .ambiguousSemantics
                 if kind != .sleep && value == nil { validation = .malformed }
+                if kind == .calories && ["resting", "active"].contains(where: { key in
+                    guard let text = row[key], !text.isEmpty else { return false }
+                    return components[key] == nil
+                }) { validation = .malformed }
                 if let value, value < 0 { validation = .implausible }
                 if kind == .oxygen, let value, (value < 0 || value > 100) { validation = .implausible }
                 if kind == .heartRate, let value, (value < 20 || value > 250) { validation = .implausible }
                 let end = row["end_ts"].flatMap(Self.parseDate)
                 let identity = [kind.rawValue, String(date.timeIntervalSince1970), statistic ?? "", row["start_ts"] ?? "", row["end_ts"] ?? ""].joined(separator: "|")
                 let id = SHA256.hash(data: Data(identity.utf8)).map { String(format: "%02x", $0) }.joined()
-                measurements.append(.init(id: id, kind: kind, timestamp: date, originalTimestamp: time, source: source, value: value, originalUnit: nil, canonicalUnit: nil, statistic: statistic, intervalEnd: end, sleepStage: nil, sessionEnd: nil, provenance: filename, validation: validation))
+                measurements.append(.init(id: id, kind: kind, timestamp: date, originalTimestamp: time, source: source, value: value, components: components, originalUnit: nil, canonicalUnit: nil, statistic: statistic, intervalEnd: end, sleepStage: nil, sessionEnd: nil, provenance: filename, validation: validation))
             }
         }
         return .init(measurements: MeasurementDeduplicator().resolve(measurements), warnings: warnings, archiveHash: try hashFile(url))
@@ -115,7 +124,7 @@ public struct EvenDataParser: Sendable {
             cursor = cursor.addingTimeInterval(Double(stage.half_minutes * 30))
             let key = "sleep|\(start.timeIntervalSince1970)|\(end.timeIntervalSince1970)|\(index)"
             let id = SHA256.hash(data: Data(key.utf8)).map { String(format: "%02x", $0) }.joined()
-            return HealthMeasurement(id: id, kind: .sleep, timestamp: stageStart, originalTimestamp: startText, source: source, value: nil, originalUnit: "half_minutes", canonicalUnit: "seconds", statistic: nil, intervalEnd: cursor, sleepStage: stage.type, sessionEnd: end, provenance: "sleep.csv", validation: .eligible)
+            return HealthMeasurement(id: id, kind: .sleep, timestamp: stageStart, originalTimestamp: startText, source: source, value: nil, components: [:], originalUnit: "half_minutes", canonicalUnit: "seconds", statistic: nil, intervalEnd: cursor, sleepStage: stage.type, sessionEnd: end, provenance: "sleep.csv", validation: .eligible)
         }
     }
 
@@ -134,8 +143,20 @@ public struct MeasurementDeduplicator: Sendable {
         let sessions = Array(Set(input.compactMap { item -> SleepInterval? in
             guard item.kind == .sleep, let end = item.sessionEnd, let start = EvenDataParser.parseDate(item.originalTimestamp) else { return nil }
             return SleepInterval(start: start, end: end)
-        }))
-        let overlapping = Set(sessions.filter { a in sessions.contains { b in a != b && a.start < b.end && b.start < a.end } })
+        })).sorted { $0.start == $1.start ? $0.end < $1.end : $0.start < $1.start }
+        var overlapping = Set<SleepInterval>()
+        var latest: SleepInterval?
+        for session in sessions {
+            if let current = latest {
+                if session.start < current.end {
+                    overlapping.insert(current)
+                    overlapping.insert(session)
+                }
+                if session.end > current.end { latest = session }
+            } else {
+                latest = session
+            }
+        }
         return input.map { item in
             var result = item
             if let previous = seen[item.id] {
