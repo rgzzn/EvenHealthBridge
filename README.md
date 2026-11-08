@@ -13,7 +13,7 @@ L'app registra il tipo ZIP come documento apribile e legge gli URL con security 
 
 Se lo store locale SwiftData non si apre, l'app mostra un errore e permette di riprovare. Non crea uno store temporaneo vuoto: senza gli identificativi precedenti non potrebbe prevenire con sicurezza le scritture duplicate in Salute.
 
-Il riepilogo iniziale mostra lo stato della scrittura del sonno in Apple Salute, le categorie importate, il numero e il periodo delle fasi registrate, l'ultima sincronizzazione e l'ultima analisi. Il pulsante per aprire un archivio ZIP è nello stesso riepilogo; lo stato dei permessi si aggiorna al ritorno nell'app e al termine dell'importazione.
+Il riepilogo iniziale mostra lo stato della scrittura del sonno in Apple Salute, le categorie importate, il numero e il periodo delle fasi registrate, l'ultima sincronizzazione e l'ultima analisi. Il pulsante per aprire un archivio ZIP è in cima alla schermata, raggiungibile anche con testo molto grande; lo stato dei permessi si aggiorna al ritorno nell'app e al termine dell'importazione.
 
 ## Dati e limiti
 

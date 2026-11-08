@@ -43,7 +43,7 @@ struct ImportView: View {
                 ImportPreviewView(dataset: dataset, coordinator: coordinator)
             }
         }
-        .navigationTitle("Even Health Bridge")
+        .navigationTitle("Importa")
         .fileImporter(isPresented: $showImporter, allowedContentTypes: [.zip], allowsMultipleSelection: false) { result in
             switch result {
             case .success(let urls):
@@ -90,7 +90,13 @@ struct DashboardView: View {
 
     var body: some View {
         Section("Riepilogo") {
-            Label("Dati elaborati sul dispositivo", systemImage: "lock.shield")
+            Button(action: openArchive) {
+                Label("Seleziona archivio ZIP", systemImage: "doc.zipper")
+                    .font(.headline)
+            }
+            .disabled(isWorking)
+            Text("Apri un archivio Even da Files. Analisi sul dispositivo.")
+                .font(.footnote).foregroundStyle(.secondary)
             LabeledContent("Apple Salute · sonno", value: healthStatus)
             LabeledContent("Categorie importate", value: importedCategories)
             LabeledContent("Fasi del sonno registrate", value: "\(savedSamples.count)")
@@ -106,13 +112,6 @@ struct DashboardView: View {
                 LabeledContent("Ultima analisi", value: latest.importedAt.formatted(date: .abbreviated, time: .shortened))
                 Text(latest.status).font(.footnote).foregroundStyle(.secondary)
             }
-            Button(action: openArchive) {
-                Label("Seleziona archivio ZIP", systemImage: "doc.zipper")
-                    .font(.headline)
-            }
-            .disabled(isWorking)
-            Text("Scegli un export Even Realities da Files. L'analisi avviene sul dispositivo.")
-                .font(.footnote).foregroundStyle(.secondary)
         }
         .onAppear { healthStatus = HealthKitService.sleepWriteStatus() }
         .onChange(of: scenePhase) { _, phase in
@@ -386,17 +385,18 @@ struct SettingsView: View {
 
     var body: some View {
         Form {
-            Section("Privacy") {
-                Label("Dati e cronologia restano sull'iPhone", systemImage: "iphone.gen3")
-                Text("Nessun account, server o tracciamento. Gli archivi non vengono conservati dopo l'analisi.")
-            }
             Section("Apple Salute") {
                 NavigationLink("Permessi Salute") { HealthPermissionsView() }
-                Text("Solo le fasi del sonno validate possono essere scritte. L'app non modifica i dati di altre sorgenti.")
+                Text("Solo le fasi del sonno validate vengono scritte. I dati di altre app restano invariati.")
+                    .font(.footnote).foregroundStyle(.secondary)
             }
             Section("Anteprima") {
                 Toggle("Mostra orari nel fuso dell'iPhone", isOn: $previewInDeviceTimeZone)
                 Text("Gli orari includono sempre il fuso: UTC o quello impostato sull'iPhone. Le date dei campioni salvati non cambiano.")
+                    .font(.footnote).foregroundStyle(.secondary)
+            }
+            Section("Privacy") {
+                Text("Dati e cronologia restano sull'iPhone. Nessun account, server o tracciamento. Gli archivi non vengono conservati.")
                     .font(.footnote).foregroundStyle(.secondary)
             }
             Section("Diagnostica") {
