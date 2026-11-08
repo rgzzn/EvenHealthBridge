@@ -135,12 +135,15 @@ struct ImportPreviewView: View {
     }
 
     var body: some View {
+        let plan = self.plan
+        let summary = ImportPreviewSummary(measurements: dataset.measurements, sleepPlan: plan)
         Section("Anteprima") {
-            if let first = dataset.measurements.map(\.timestamp).min(), let last = dataset.measurements.map(\.timestamp).max() {
+            if let first = summary.categories.compactMap(\.periodStart).min(),
+               let last = summary.categories.compactMap(\.periodEnd).max() {
                 LabeledContent("Periodo", value: "\(first.formatted(date: .abbreviated, time: .omitted)) – \(last.formatted(date: .abbreviated, time: .omitted))")
             }
-            ForEach(MeasurementKind.allCases, id: \.self) { kind in
-                CategorySummaryRow(kind: kind, records: dataset.measurements.filter { $0.kind == kind })
+            ForEach(summary.categories, id: \.kind) { category in
+                CategorySummaryRow(summary: category)
             }
         }
         Section("Sonno importabile") {
@@ -151,6 +154,13 @@ struct ImportPreviewView: View {
             Text("Le altre categorie sono escluse finché unità, intervalli e significato dei valori non sono verificati.")
                 .font(.footnote)
                 .foregroundStyle(.secondary)
+            if !plan.newSamples.isEmpty {
+                DisclosureGroup("Esamina le \(plan.newSamples.count) fasi nuove") {
+                    ForEach(plan.newSamples) { sample in
+                        SleepStagePreviewRow(sample: sample)
+                    }
+                }
+            }
             if let written = coordinator.writtenCount {
                 Label("Nuove fasi salvate: \(written)", systemImage: "checkmark.circle")
                     .foregroundStyle(.green)
@@ -181,11 +191,10 @@ struct ImportPreviewView: View {
 }
 
 private struct CategorySummaryRow: View {
-    let kind: MeasurementKind
-    let records: [HealthMeasurement]
+    let summary: CategoryPreviewSummary
 
     private var title: String {
-        switch kind {
+        switch summary.kind {
         case .steps: "Passi"
         case .calories: "Calorie"
         case .heartRate: "Frequenza cardiaca"
@@ -197,13 +206,66 @@ private struct CategorySummaryRow: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(title).font(.headline)
-            Text("\(records.count) record · \(records.filter { $0.validation == .eligible }.count) validi · \(records.filter { $0.validation == .duplicate }.count) duplicati · \(records.filter { $0.validation == .conflict }.count) conflitti")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+        DisclosureGroup {
+            LabeledContent("Misurazioni analizzate", value: "\(summary.records)")
+            LabeledContent("Validati nello ZIP", value: "\(summary.eligible)")
+            LabeledContent("Nuovi in Salute", value: "\(summary.new)")
+            LabeledContent("Già importati", value: "\(summary.alreadyImported)")
+            LabeledContent("Duplicati nello ZIP", value: "\(summary.duplicates)")
+            LabeledContent("Esclusi", value: "\(summary.excluded)")
+            LabeledContent("Conflitti", value: "\(summary.conflicts)")
+            if let start = summary.periodStart, let end = summary.periodEnd {
+                LabeledContent("Periodo UTC", value: "\(start.ISO8601Format()) – \(end.ISO8601Format())")
+            }
+            if !summary.sources.isEmpty {
+                let sourceText = summary.sources.sorted { $0.key < $1.key }
+                    .map { "\($0.key): \($0.value)" }.joined(separator: " · ")
+                LabeledContent("Sorgenti", value: sourceText)
+            }
+            if summary.kind != .sleep {
+                Text("Scrittura esclusa: unità, intervallo o significato dei valori non verificati.")
+                    .font(.footnote).foregroundStyle(.secondary)
+            }
+        } label: {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title).font(.headline)
+                Text("\(summary.records) misurazioni · \(summary.new) nuove · \(summary.duplicates) duplicate · \(summary.excluded) escluse")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
         }
-        .accessibilityElement(children: .combine)
+    }
+}
+
+private struct SleepStagePreviewRow: View {
+    let sample: HealthMeasurement
+
+    private var stageName: String {
+        switch sample.sleepStage {
+        case 0: "Veglia"
+        case 1: "REM"
+        case 2: "Sonno leggero"
+        case 3: "Sonno profondo"
+        default: "Fase sconosciuta"
+        }
+    }
+
+    var body: some View {
+        if let end = sample.intervalEnd {
+            let duration = Int(end.timeIntervalSince(sample.timestamp))
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    Text(stageName).font(.headline)
+                    Spacer()
+                    Text("\(duration / 60) min \(duration % 60) s")
+                        .foregroundStyle(.secondary)
+                }
+                Text("\(sample.timestamp.ISO8601Format()) – \(end.ISO8601Format()) UTC")
+                    .font(.caption).foregroundStyle(.secondary)
+                Text("Sorgente: \(sample.source)")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            .accessibilityElement(children: .combine)
+        }
     }
 }
 

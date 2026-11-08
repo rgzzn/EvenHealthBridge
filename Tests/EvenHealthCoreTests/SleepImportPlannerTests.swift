@@ -33,6 +33,12 @@ private func stored(_ item: HealthMeasurement) -> ImportedSleepSample {
     let plan = SleepImportPlanner().plan(candidates, imported: [stored(prior)])
     #expect(plan.newSamples.isEmpty)
     #expect(plan.conflicts == 2)
+    let preview = ImportPreviewSummary(measurements: candidates, sleepPlan: plan)
+    let sleep = preview.categories.first { $0.kind == .sleep }
+    #expect(sleep?.records == 2)
+    #expect(sleep?.new == 0)
+    #expect(sleep?.excluded == 2)
+    #expect(sleep?.conflicts == 2)
 }
 
 @Test func changedStageConflictsInsteadOfReplacing() {

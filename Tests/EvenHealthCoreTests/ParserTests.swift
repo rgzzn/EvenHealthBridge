@@ -49,4 +49,11 @@ import Testing
     #expect(dataset.measurements.filter { $0.kind == .sleep && $0.validation == .duplicate }.count == 25)
     #expect(dataset.measurements.filter { $0.kind == .sleep && $0.validation == .conflict }.count == 304)
     #expect(dataset.warnings.isEmpty)
+    let plan = SleepImportPlanner().plan(dataset.measurements, imported: [])
+    let sleep = ImportPreviewSummary(measurements: dataset.measurements, sleepPlan: plan)
+        .categories.first { $0.kind == .sleep }
+    #expect(sleep?.records == 354)
+    #expect(sleep?.new == 25)
+    #expect(sleep?.duplicates == 25)
+    #expect(sleep?.excluded == 304)
 }

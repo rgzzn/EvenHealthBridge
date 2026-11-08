@@ -45,6 +45,21 @@ private func withArchive(_ files: [String: String], body: (URL) throws -> Void) 
         let calories = dataset.measurements.first { $0.kind == .calories }
         #expect(calories?.components["resting"] == 8)
         #expect(calories?.components["active"] == 2)
+        let plan = SleepImportPlanner().plan(dataset.measurements, imported: [])
+        let preview = ImportPreviewSummary(measurements: dataset.measurements, sleepPlan: plan)
+        let sleep = preview.categories.first { $0.kind == .sleep }
+        #expect(sleep?.records == 2)
+        #expect(sleep?.new == 1)
+        #expect(sleep?.duplicates == 1)
+        #expect(sleep?.excluded == 0)
+        #expect(sleep?.periodEnd == EvenDataParser.parseDate(sleepEnd))
+        let steps = preview.categories.first { $0.kind == .steps }
+        #expect(steps?.records == 2)
+        #expect(steps?.new == 0)
+        #expect(steps?.duplicates == 1)
+        #expect(steps?.excluded == 1)
+        #expect(steps?.sources["R1"] == 1)
+        #expect(steps?.sources["ring1Notify"] == 1)
     }
 }
 
