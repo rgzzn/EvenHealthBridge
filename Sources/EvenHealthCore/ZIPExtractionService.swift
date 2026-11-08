@@ -14,22 +14,30 @@ public struct ZIPExtractionService: Sendable {
     public let maxEntryBytes: Int64 = 30_000_000
     public init() {}
 
-    /// Reads only the seven known CSV files; never writes ZIP paths to disk.
+    /// Compatibility API for callers that need every CSV in memory.
     public func readCSV(at url: URL) throws -> [String: Data] {
+        var result: [String: Data] = [:]
+        try forEachCSV(at: url) { filename, bytes in result[filename] = bytes }
+        return result
+    }
+
+    /// Decompresses each known CSV for the duration of its callback; never writes ZIP paths to disk.
+    @discardableResult
+    public func forEachCSV(at url: URL, _ body: (String, Data) throws -> Void) throws -> Set<String> {
         let handle = try FileHandle(forReadingFrom: url)
         defer { try? handle.close() }
         let size = try handle.seekToEnd()
         guard size <= UInt64(maxArchiveBytes) else { throw ZIPImportError.archiveTooLarge }
         let archive = try Archive(url: url, accessMode: .read)
         let allowed: Set<String> = ["steps.csv", "calories.csv", "heart_rate.csv", "hrv.csv", "blood_oxygen.csv", "sleep.csv", "skin_temperature.csv"]
-        var result: [String: Data] = [:]
+        var seen = Set<String>()
         var expanded: UInt64 = 0
         for entry in archive {
             try Task.checkCancellation()
             let parts = entry.path.split(separator: "/", omittingEmptySubsequences: false)
             guard !entry.path.hasPrefix("/"), !parts.contains(".."), !parts.contains("."), !entry.path.contains("\\") else { throw ZIPImportError.unsafeEntry }
             guard entry.type == .file, let filename = parts.last.map(String.init), allowed.contains(filename) else { continue }
-            guard result[filename] == nil else { throw ZIPImportError.duplicateFile(filename) }
+            guard seen.insert(filename).inserted else { throw ZIPImportError.duplicateFile(filename) }
             guard entry.uncompressedSize <= UInt64(maxEntryBytes),
                   entry.uncompressedSize <= UInt64(maxExpandedBytes) - expanded else { throw ZIPImportError.archiveTooLarge }
             expanded += entry.uncompressedSize
@@ -39,8 +47,8 @@ public struct ZIPExtractionService: Sendable {
                 guard bytes.count + chunk.count <= maxEntryBytes else { throw ZIPImportError.archiveTooLarge }
                 bytes.append(chunk)
             }
-            result[filename] = bytes
+            try body(filename, bytes)
         }
-        return result
+        return seen
     }
 }

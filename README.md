@@ -21,7 +21,7 @@ Il parser legge tutti e sette i CSV; i dettagli dello schema sono in [Docs/Datas
 
 Le sessioni di sonno oltre 24 ore sono scartate come non plausibili. Se due righe della stessa sorgente descrivono fasi diverse per la stessa sessione, l'intera sessione è classificata come conflitto; copie identiche vengono deduplicate. Il lettore ZIP rifiuta archivi oltre 50 MB e limita la dimensione dei CSV decompressi prima di analizzarli.
 
-I CSV sono analizzati una riga alla volta, senza conservare tutte le righe come dizionari; i dati decompressi vengono rilasciati dopo l'elaborazione di ciascun file. Se un archivio contiene molti record malformati, l'anteprima mostra i primi 100 avvisi e il numero di quelli omessi.
+I CSV sono decompressi e analizzati un file e una riga alla volta, senza conservare tutte le righe come dizionari o tutti i CSV decompressi insieme. Se un archivio contiene molti record malformati, l'anteprima mostra i primi 100 avvisi e il numero di quelli omessi.
 
 L'anteprima espone per ciascuna categoria misurazioni analizzate, validate, nuove, già importate, duplicate nello ZIP, escluse, conflitti, sorgenti e periodo UTC. Per il sonno ogni fase è una misurazione, quindi il conteggio differisce dal numero di righe `sleep.csv`. Le fasi nuove sono elencate con tipo, orario, durata e sorgente prima del consenso alla scrittura. Nelle Impostazioni puoi scegliere se visualizzare gli orari in UTC o nel fuso dell'iPhone; in entrambi i casi è mostrato l'offset temporale.
 

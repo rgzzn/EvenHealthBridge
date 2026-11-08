@@ -67,7 +67,6 @@ public struct EvenDataParser: Sendable {
     public init() {}
 
     public func parseArchive(at url: URL) throws -> ParsedDataset {
-        var contents = try zip.readCSV(at: url)
         var measurements: [HealthMeasurement] = []
         var warnings: [String] = []
         var omittedWarnings = 0
@@ -75,9 +74,10 @@ public struct EvenDataParser: Sendable {
             if warnings.count < 100 { warnings.append(message) }
             else { omittedWarnings += 1 }
         }
-        for (filename, kind) in fileKinds {
+        let kindsByFilename = Dictionary(uniqueKeysWithValues: fileKinds)
+        let seen = try zip.forEachCSV(at: url) { filename, data in
             try Task.checkCancellation()
-            guard let data = contents.removeValue(forKey: filename) else { addWarning("File mancante: \(filename)"); continue }
+            guard let kind = kindsByFilename[filename] else { return }
             do {
                 try csv.forEachRowRecovering(data, onRejected: { number in
                     addWarning("\(filename): record CSV \(number) scartato")
@@ -116,6 +116,9 @@ public struct EvenDataParser: Sendable {
             } catch is CSVError {
                 addWarning("\(filename): intestazione o codifica CSV non valida")
             }
+        }
+        for (filename, _) in fileKinds where !seen.contains(filename) {
+            addWarning("File mancante: \(filename)")
         }
         if omittedWarnings > 0 { warnings.append("Altri \(omittedWarnings) avvisi omessi; controlla la qualità dell'archivio.") }
         return .init(measurements: MeasurementDeduplicator().resolve(measurements), warnings: warnings, archiveHash: try hashFile(url))

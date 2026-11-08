@@ -66,6 +66,7 @@ private func withArchive(_ files: [String: String], body: (URL) throws -> Void) 
 @Test func duplicateCSVFilenameIsRejected() throws {
     try withArchive(["one/steps.csv": "timestamp,value,source\n", "two/steps.csv": "timestamp,value,source\n"]) { url in
         #expect(throws: ZIPImportError.self) { try ZIPExtractionService().readCSV(at: url) }
+        #expect(throws: ZIPImportError.self) { try EvenDataParser().parseArchive(at: url) }
     }
 }
 
