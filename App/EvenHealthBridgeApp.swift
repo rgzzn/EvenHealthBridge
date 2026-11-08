@@ -326,16 +326,42 @@ final class ImportCoordinator {
     }
 }
 
+enum LocalStore {
+    static func open(configuration: ModelConfiguration = ModelConfiguration(cloudKitDatabase: .none)) -> ModelContainer? {
+        do {
+            return try ModelContainer(for: StoredImportSession.self, StoredImportAttempt.self, StoredSample.self, configurations: configuration)
+        } catch {
+            DiagnosticLoggingService.logger.error("Local history store unavailable")
+            return nil
+        }
+    }
+}
+
 @main
 struct EvenHealthBridgeApp: App {
-    private let container: ModelContainer = {
-        let configuration = ModelConfiguration(cloudKitDatabase: .none)
-        return try! ModelContainer(for: StoredImportSession.self, StoredImportAttempt.self, StoredSample.self, configurations: configuration)
-    }()
+    @State private var container = LocalStore.open()
 
     var body: some Scene {
-        WindowGroup { RootView() }
-            .modelContainer(container)
+        WindowGroup {
+            if let container {
+                RootView().modelContainer(container)
+            } else {
+                StorageUnavailableView { container = LocalStore.open() }
+            }
+        }
+    }
+}
+
+private struct StorageUnavailableView: View {
+    let retry: () -> Void
+
+    var body: some View {
+        VStack(spacing: 20) {
+            ContentUnavailableView("Archivio locale non disponibile", systemImage: "externaldrive",
+                description: Text("L'app non può verificare i campioni già importati. Riprova quando lo spazio e l'archivio del dispositivo sono disponibili."))
+            Button("Riprova", action: retry)
+                .buttonStyle(.borderedProminent)
+        }
     }
 }
 

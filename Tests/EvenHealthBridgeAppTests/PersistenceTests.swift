@@ -41,6 +41,14 @@ import EvenHealthCore
     return try ModelContainer(for: StoredImportSession.self, StoredImportAttempt.self, StoredSample.self, configurations: configuration)
 }
 
+@MainActor @Test func unavailableLocalStoreNeverFallsBackToEmptyHistory() throws {
+    let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let configuration = ModelConfiguration(url: directory, cloudKitDatabase: .none)
+    #expect(LocalStore.open(configuration: configuration) == nil)
+}
+
 @MainActor @Test func repeatedArchiveCreatesDistinctHistoryAttempts() throws {
     let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
     try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
