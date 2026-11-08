@@ -53,7 +53,7 @@ La build e il lancio sono stati verificati su un simulatore iOS 27. La scrittura
 
 I test iOS usano store SwiftData temporanei: verificano che un ID di fase sopravviva alla riapertura, che due analisi dello stesso ZIP producano due voci distinte e che la cronologia del primo schema resti leggibile dopo l'aggiunta del nuovo modello. Un test aggiuntivo passa uno ZIP sintetico al coordinatore iOS e verifica l'analisi ripetuta. Non eseguono una scrittura HealthKit reale.
 
-L'apertura di un documento ZIP dal menu Condividi o dal selettore Files non è stata verificata con un test end-to-end su iPhone fisico. Il test iOS copre l'analisi dello ZIP sintetico dopo la consegna del suo URL al coordinatore.
+Nel simulatore iOS 27 è stato aperto `SyntheticSleep.zip` dal selettore Files dell'app: l'anteprima ha mostrato 1 fase nuova, 0 già importate e 6 avvisi per i CSV assenti nella fixture. La registrazione della sola analisi è comparsa in Cronologia con 2 record, 1 duplicato e 0 campioni scritti. Il test iOS copre inoltre l'analisi ripetuta dello ZIP dopo la consegna del suo URL al coordinatore. L'apertura dal menu Condividi, il selettore Files su iPhone fisico e la scrittura HealthKit reale restano da verificare.
 
 Nell'app puoi annullare l'analisi di uno ZIP in corso. Dalle impostazioni puoi cancellare la cronologia delle analisi; gli ID dei campioni HealthKit restano conservati localmente per evitare nuove scritture duplicate.
 
