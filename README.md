@@ -15,6 +15,8 @@ L'app registra il tipo ZIP come documento apribile e legge gli URL con security 
 
 Il parser legge tutti e sette i CSV; i dettagli dello schema sono in [Docs/DatasetAnalysis.md](Docs/DatasetAnalysis.md). Per il sonno convalida che le durate delle fasi corrispondano agli aggregati e all'intervallo della sessione. Codici: 0 veglia, 1 REM, 2 leggero/Core, 3 profondo. Le sessioni sovrapposte sono escluse; solo le fasi validate e senza conflitti sono idonee alla scrittura.
 
+Le sessioni di sonno oltre 24 ore sono scartate come non plausibili. Se due righe della stessa sorgente descrivono fasi diverse per la stessa sessione, l'intera sessione è classificata come conflitto; copie identiche vengono deduplicate. Il lettore ZIP rifiuta archivi oltre 50 MB e limita la dimensione dei CSV decompressi prima di analizzarli.
+
 L'anteprima espone per ciascuna categoria misurazioni analizzate, validate, nuove, già importate, duplicate nello ZIP, escluse, conflitti, sorgenti e periodo UTC. Per il sonno ogni fase è una misurazione, quindi il conteggio differisce dal numero di righe `sleep.csv`. Le fasi nuove sono elencate con tipo, orario UTC, durata e sorgente prima del consenso alla scrittura.
 
 Passi, calorie, frequenza cardiaca, HRV, SpO₂ e temperatura sono visibili nell'anteprima ma esclusi dalla scrittura: l'export non fornisce ancora le unità e/o gli intervalli o il significato statistico necessari per un mapping sicuro. In particolare HRV non specifica SDNN, e min/max/avg non sono tre campioni distinti. Un aggiornamento futuro richiederà documentazione attendibile e test dedicati.

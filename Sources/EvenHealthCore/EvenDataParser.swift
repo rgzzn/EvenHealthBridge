@@ -149,6 +149,7 @@ public struct EvenDataParser: Sendable {
         for stage in stages {
             guard (0...3).contains(stage.type), stage.half_minutes > 0, stage.half_minutes < 2_880 else { throw SleepParseError.invalidSession }
             let seconds = stage.half_minutes * 30
+            guard elapsed <= 86_400 - seconds else { throw SleepParseError.invalidSession }
             sums[stage.type] += seconds
             elapsed += seconds
         }
@@ -198,18 +199,26 @@ public struct MeasurementDeduplicator: Sendable {
             }
         }
         var shapes: [SleepInterval: [String: [SleepStageShape]]] = [:]
+        var shapesByID: [String: Set<SleepStageShape>] = [:]
+        var sessionByID: [String: SleepInterval] = [:]
         for item in input where item.kind == .sleep {
             guard let end = item.sessionEnd, let start = EvenDataParser.parseDate(item.originalTimestamp),
                   let stageEnd = item.intervalEnd, let stage = item.sleepStage else { continue }
-            shapes[SleepInterval(start: start, end: end), default: [:]][item.source, default: []]
-                .append(SleepStageShape(start: item.timestamp, end: stageEnd, stage: stage))
+            let session = SleepInterval(start: start, end: end)
+            let shape = SleepStageShape(start: item.timestamp, end: stageEnd, stage: stage)
+            shapes[session, default: [:]][item.source, default: []].append(shape)
+            shapesByID[item.id, default: []].insert(shape)
+            sessionByID[item.id] = session
         }
-        let disagreements = Set(shapes.compactMap { session, bySource -> SleepInterval? in
+        var disagreements = Set(shapes.compactMap { session, bySource -> SleepInterval? in
             let sequences = bySource.values.map { stages in
-                stages.sorted { $0.start < $1.start }
+                Array(Set(stages)).sorted { $0.start < $1.start }
             }
             return Set(sequences).count > 1 ? session : nil
         })
+        for (id, variants) in shapesByID where variants.count > 1 {
+            if let session = sessionByID[id] { disagreements.insert(session) }
+        }
         return input.map { item in
             var result = item
             if let previous = seen[item.id] {

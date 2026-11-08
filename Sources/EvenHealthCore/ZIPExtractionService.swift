@@ -16,20 +16,23 @@ public struct ZIPExtractionService: Sendable {
 
     /// Reads only the seven known CSV files; never writes ZIP paths to disk.
     public func readCSV(at url: URL) throws -> [String: Data] {
-        let size = try url.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0
-        guard size <= maxArchiveBytes else { throw ZIPImportError.archiveTooLarge }
+        let handle = try FileHandle(forReadingFrom: url)
+        defer { try? handle.close() }
+        let size = try handle.seekToEnd()
+        guard size <= UInt64(maxArchiveBytes) else { throw ZIPImportError.archiveTooLarge }
         let archive = try Archive(url: url, accessMode: .read)
         let allowed: Set<String> = ["steps.csv", "calories.csv", "heart_rate.csv", "hrv.csv", "blood_oxygen.csv", "sleep.csv", "skin_temperature.csv"]
         var result: [String: Data] = [:]
-        var expanded: Int64 = 0
+        var expanded: UInt64 = 0
         for entry in archive {
             try Task.checkCancellation()
             let parts = entry.path.split(separator: "/", omittingEmptySubsequences: false)
             guard !entry.path.hasPrefix("/"), !parts.contains(".."), !parts.contains("."), !entry.path.contains("\\") else { throw ZIPImportError.unsafeEntry }
             guard entry.type == .file, let filename = parts.last.map(String.init), allowed.contains(filename) else { continue }
             guard result[filename] == nil else { throw ZIPImportError.duplicateFile(filename) }
-            guard entry.uncompressedSize <= maxEntryBytes, expanded + Int64(entry.uncompressedSize) <= maxExpandedBytes else { throw ZIPImportError.archiveTooLarge }
-            expanded += Int64(entry.uncompressedSize)
+            guard entry.uncompressedSize <= UInt64(maxEntryBytes),
+                  entry.uncompressedSize <= UInt64(maxExpandedBytes) - expanded else { throw ZIPImportError.archiveTooLarge }
+            expanded += entry.uncompressedSize
             var bytes = Data()
             _ = try archive.extract(entry, bufferSize: 16_384) { chunk in
                 try Task.checkCancellation()

@@ -90,6 +90,20 @@ private func withArchive(_ files: [String: String], body: (URL) throws -> Void) 
     }
 }
 
+@Test func oversizedArchiveIsRejectedBeforeZIPParsing() throws {
+    let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".zip")
+    _ = FileManager.default.createFile(atPath: url.path, contents: Data())
+    defer { try? FileManager.default.removeItem(at: url) }
+    let handle = try FileHandle(forWritingTo: url)
+    try handle.truncate(atOffset: 50_000_001)
+    try handle.close()
+    do {
+        _ = try ZIPExtractionService().readCSV(at: url)
+        Issue.record("Expected archive size limit")
+    } catch ZIPImportError.archiveTooLarge { }
+    catch { Issue.record("Unexpected error: \(error)") }
+}
+
 @Test func differingStageSequencesRejectEntireSession() throws {
     let header = "timestamp,start_ts,end_ts,total_time,wake_time,rem_time,light_time,deep_time,stages,source,tz,body_temp_delta\n"
     let prefix = "2026-01-01T00:00:00Z,2026-01-01T00:00:00Z,2026-01-01T00:01:00Z,60,0,0,60,0,"
@@ -100,6 +114,44 @@ private func withArchive(_ files: [String: String], body: (URL) throws -> Void) 
         let dataset = try EvenDataParser().parseArchive(at: url)
         #expect(dataset.measurements.count == 3)
         #expect(dataset.measurements.allSatisfy { $0.validation == .conflict })
+    }
+}
+
+@Test func conflictingRowsFromSameSourceRejectEntireSleepSession() throws {
+    let header = "timestamp,start_ts,end_ts,total_time,wake_time,rem_time,light_time,deep_time,stages,source,tz,body_temp_delta\n"
+    let prefix = "2026-01-01T00:00:00Z,2026-01-01T00:00:00Z,2026-01-01T00:01:00Z,60,0,0,60,0,"
+    let single = "\"[{\"\"type\"\":2,\"\"half_minutes\"\":2}]\""
+    let split = "\"[{\"\"type\"\":2,\"\"half_minutes\"\":1},{\"\"type\"\":2,\"\"half_minutes\"\":1}]\""
+    let file = header + prefix + single + ",R1,+00:00,\n" + prefix + split + ",R1,+00:00,\n"
+    try withArchive(["sleep.csv": file]) { url in
+        let dataset = try EvenDataParser().parseArchive(at: url)
+        #expect(dataset.measurements.count == 3)
+        #expect(dataset.measurements.allSatisfy { $0.validation == .conflict })
+        #expect(SleepImportPlanner().plan(dataset.measurements, imported: []).newSamples.isEmpty)
+    }
+}
+
+@Test func identicalRepeatedSleepRowRemainsDeduplicated() throws {
+    let header = "timestamp,start_ts,end_ts,total_time,wake_time,rem_time,light_time,deep_time,stages,source,tz,body_temp_delta\n"
+    let stages = "\"[{\"\"type\"\":2,\"\"half_minutes\"\":2}]\""
+    let prefix = "2026-01-01T00:00:00Z,2026-01-01T00:00:00Z,2026-01-01T00:01:00Z,60,0,0,60,0,\(stages),"
+    let file = header + prefix + "R1,+00:00,\n" + prefix + "R1,+00:00,\n" + prefix + "ring1Notify,+00:00,\n"
+    try withArchive(["sleep.csv": file]) { url in
+        let dataset = try EvenDataParser().parseArchive(at: url)
+        #expect(dataset.measurements.filter { $0.validation == .eligible }.count == 1)
+        #expect(dataset.measurements.filter { $0.validation == .duplicate }.count == 2)
+        #expect(dataset.measurements.allSatisfy { $0.validation != .conflict })
+    }
+}
+
+@Test func implausiblyLongSleepSessionIsRejected() throws {
+    let header = "timestamp,start_ts,end_ts,total_time,wake_time,rem_time,light_time,deep_time,stages,source,tz,body_temp_delta\n"
+    let stages = "\"[{\"\"type\"\":2,\"\"half_minutes\"\":1500},{\"\"type\"\":2,\"\"half_minutes\"\":1500}]\""
+    let row = "2026-01-01T00:00:00Z,2026-01-01T00:00:00Z,2026-01-02T01:00:00Z,90000,0,0,90000,0,\(stages),R1,+00:00,\n"
+    try withArchive(["sleep.csv": header + row]) { url in
+        let dataset = try EvenDataParser().parseArchive(at: url)
+        #expect(dataset.measurements.isEmpty)
+        #expect(dataset.warnings.contains { $0.contains("sessione non valida") })
     }
 }
 
