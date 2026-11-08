@@ -184,6 +184,31 @@ enum ImportFailure: LocalizedError {
     }
 }
 
+enum ImportInterruptionReason {
+    case cancelled, permissionDenied, healthUnavailable, conflictingSample, invalidSample, other
+
+    init(error: Error) {
+        switch error {
+        case ImportFailure.permissionDenied: self = .permissionDenied
+        case ImportFailure.healthUnavailable: self = .healthUnavailable
+        case ImportFailure.conflictingSavedSample: self = .conflictingSample
+        case ImportFailure.invalidSample: self = .invalidSample
+        default: self = .other
+        }
+    }
+
+    var title: String {
+        switch self {
+        case .cancelled: "Annullata"
+        case .permissionDenied: "Permesso Salute negato"
+        case .healthUnavailable: "Apple Salute non disponibile"
+        case .conflictingSample: "Conflitto in Apple Salute"
+        case .invalidSample: "Campione di sonno non valido"
+        case .other: "Errore di sincronizzazione"
+        }
+    }
+}
+
 @MainActor @Observable
 final class ImportCoordinator {
     var dataset: ParsedDataset?
@@ -255,11 +280,11 @@ final class ImportCoordinator {
             DiagnosticLoggingService.logger.info("Sleep import completed; written: \(self.writtenCount ?? 0, privacy: .public)")
         } catch is CancellationError {
             self.error = "Importazione interrotta. Puoi riprendere quando vuoi."
-            try? recordInterruptedImport(in: context)
+            try? recordInterruptedImport(in: context, reason: .cancelled)
             DiagnosticLoggingService.logger.info("Sleep import cancelled")
         } catch {
             self.error = error.localizedDescription
-            try? recordInterruptedImport(in: context)
+            try? recordInterruptedImport(in: context, reason: ImportInterruptionReason(error: error))
             DiagnosticLoggingService.logger.error("Sleep import interrupted")
         }
     }
@@ -274,14 +299,14 @@ final class ImportCoordinator {
         persisted = true
     }
 
-    private func recordInterruptedImport(in context: ModelContext) throws {
+    func recordInterruptedImport(in context: ModelContext, reason: ImportInterruptionReason) throws {
         guard let dataset else { return }
         let ids = Set(dataset.measurements.filter { $0.kind == .sleep }.map(\.id))
         let saved = try context.fetch(FetchDescriptor<StoredSample>()).filter { ids.contains($0.stableID) }.count
         let session = try currentAttempt(in: context, dataset: dataset)
         session.writtenSamples = saved
         session.excluded = try excludedCount(in: context)
-        session.status = "Importazione interrotta; \(saved) fasi salvate. Riprova per continuare."
+        session.status = "\(reason.title): \(saved) fasi registrate localmente; verifica al prossimo tentativo."
         try context.save()
     }
 

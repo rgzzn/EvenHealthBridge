@@ -348,7 +348,7 @@ private struct ImportHistoryRow: View {
         VStack(alignment: .leading, spacing: 4) {
             Text(session.importedAt.formatted(date: .abbreviated, time: .shortened)).font(.headline)
             Text(session.status).font(.subheadline)
-            Text("\(session.records) record · \(session.duplicates) duplicati · \(session.writtenSamples) fasi salvate")
+            Text("\(session.records) record · \(session.duplicates) duplicati · \(session.writtenSamples) fasi registrate")
                 .font(.caption).foregroundStyle(.secondary)
         }
     }
@@ -364,7 +364,7 @@ private struct ImportSessionDetailView: View {
                 LabeledContent("Record analizzati", value: "\(session.records)")
                 LabeledContent("Duplicati", value: "\(session.duplicates)")
                 LabeledContent("Esclusi", value: "\(session.excluded)")
-                LabeledContent("Fasi salvate", value: "\(session.writtenSamples)")
+                LabeledContent("Fasi registrate localmente", value: "\(session.writtenSamples)")
             }
             Section("Versioni") {
                 LabeledContent("Parser", value: "\(session.parserVersion)")

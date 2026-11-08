@@ -49,6 +49,31 @@ import EvenHealthCore
     #expect(LocalStore.open(configuration: configuration) == nil)
 }
 
+@MainActor @Test func interruptedHistoryRecordsSafeReasonAndConfirmedLocalCount() throws {
+    let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let context = ModelContext(try makeContainer(at: directory.appendingPathComponent("Interrupted.store")))
+    let start = Date(timeIntervalSince1970: 1_700_000_000)
+    let end = start.addingTimeInterval(60)
+    let sample = HealthMeasurement(id: "local-stage", kind: .sleep, timestamp: start,
+        originalTimestamp: ISO8601DateFormatter().string(from: start), source: "R1",
+        value: nil, components: [:], originalUnit: "half_minutes", canonicalUnit: "seconds",
+        statistic: nil, intervalEnd: end, sleepStage: 2, sessionEnd: end,
+        provenance: "sleep.csv", validation: .eligible)
+    let coordinator = ImportCoordinator()
+    coordinator.dataset = ParsedDataset(measurements: [sample], warnings: [], archiveHash: "test-archive")
+    try coordinator.recordStartedImport(in: context)
+    try SwiftDataSleepRepository(context: context).record(sample)
+    try coordinator.recordInterruptedImport(in: context, reason: .permissionDenied)
+
+    let attempt = try #require(context.fetch(FetchDescriptor<StoredImportAttempt>()).first)
+    #expect(attempt.writtenSamples == 1)
+    #expect(attempt.status.contains("Permesso Salute negato"))
+    #expect(attempt.status.contains("registrate localmente"))
+    #expect(ImportInterruptionReason(error: NSError(domain: "private health value", code: 1)).title == "Errore di sincronizzazione")
+}
+
 @MainActor @Test func repeatedArchiveCreatesDistinctHistoryAttempts() throws {
     let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
     try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)

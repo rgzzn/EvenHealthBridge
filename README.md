@@ -61,4 +61,6 @@ La schermata **Diagnostica** nelle Impostazioni mostra versione dell'app, versio
 
 Ogni nuova analisi registrata e ogni nuovo tentativo di scrittura creano una voce di cronologia, anche se lo ZIP ha lo stesso hash di uno precedente. Quando avvii una scrittura, l'app salva prima una voce con esito da verificare: se si arresta improvvisamente, la voce rimane visibile. Le vecchie voci del primo schema compaiono nella sezione **Cronologia precedente**.
 
+Per un tentativo interrotto, la cronologia distingue cancellazione, permesso negato, indisponibilità di Salute, conflitto e altri errori con messaggi predefiniti, senza registrare dettagli biometrici. Il conteggio indica le fasi confermate nell'archivio locale: eventuali scritture in Salute avvenute immediatamente prima dell'interruzione vengono riconciliate al tentativo successivo.
+
 Se apri un altro ZIP durante l'analisi, l'app attende la cancellazione dell'analisi precedente prima di iniziare la nuova. Durante la scrittura in Salute, un nuovo archivio viene rifiutato per mantenere coerente la cronologia dell'importazione. Nel riepilogo, i campioni già importati sono distinti dai dati esclusi per ambiguità o conflitto.
