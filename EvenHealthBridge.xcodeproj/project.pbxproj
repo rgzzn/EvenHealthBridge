@@ -1,0 +1,29 @@
+// !$*UTF8*$!
+{
+ archiveVersion = 1;
+ classes = {};
+ objectVersion = 77;
+ objects = {
+  A10000000000000000000001 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EvenHealthBridgeApp.swift; sourceTree = "<group>"; };
+  A10000000000000000000002 = {isa = PBXFileReference; lastKnownFileType = wrapper.application; path = EvenHealthBridge.app; sourceTree = BUILT_PRODUCTS_DIR; };
+  A10000000000000000000003 = {isa = PBXBuildFile; fileRef = A10000000000000000000001; };
+  A10000000000000000000004 = {isa = PBXBuildFile; productRef = A10000000000000000000005; };
+  A10000000000000000000005 = {isa = XCSwiftPackageProductDependency; productName = EvenHealthCore; package = A10000000000000000000006; };
+  A10000000000000000000006 = {isa = XCLocalSwiftPackageReference; relativePath = .; };
+  A10000000000000000000007 = {isa = PBXGroup; children = (A10000000000000000000008, A10000000000000000000009); sourceTree = "<group>"; };
+  A10000000000000000000008 = {isa = PBXGroup; children = (A10000000000000000000001); path = App; sourceTree = "<group>"; };
+  A10000000000000000000009 = {isa = PBXGroup; children = (A10000000000000000000002); name = Products; sourceTree = "<group>"; };
+  A1000000000000000000000A = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (A10000000000000000000003); runOnlyForDeploymentPostprocessing = 0; };
+  A1000000000000000000000B = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (A10000000000000000000004); runOnlyForDeploymentPostprocessing = 0; };
+  A1000000000000000000000C = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+  A1000000000000000000000D = {isa = PBXNativeTarget; buildConfigurationList = A10000000000000000000010; buildPhases = (A1000000000000000000000A, A1000000000000000000000B, A1000000000000000000000C); buildRules = (); dependencies = (); name = EvenHealthBridge; packageProductDependencies = (A10000000000000000000005); productName = EvenHealthBridge; productReference = A10000000000000000000002; productType = "com.apple.product-type.application"; };
+  A1000000000000000000000E = {isa = PBXProject; attributes = {BuildIndependentTargetsInParallel = 1; LastUpgradeCheck = 2700; TargetAttributes = {A1000000000000000000000D = {CreatedOnToolsVersion = 27.0; }; }; }; buildConfigurationList = A1000000000000000000000F; compatibilityVersion = "Xcode 16.0"; developmentRegion = en; hasScannedForEncodings = 0; knownRegions = (en, Base); mainGroup = A10000000000000000000007; packageReferences = (A10000000000000000000006); preferredProjectObjectVersion = 77; productRefGroup = A10000000000000000000009; projectDirPath = ""; projectRoot = ""; targets = (A1000000000000000000000D); };
+  A1000000000000000000000F = {isa = XCConfigurationList; buildConfigurations = (A10000000000000000000011, A10000000000000000000012); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+  A10000000000000000000010 = {isa = XCConfigurationList; buildConfigurations = (A10000000000000000000013, A10000000000000000000014); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+  A10000000000000000000011 = {isa = XCBuildConfiguration; buildSettings = {CLANG_ENABLE_MODULES = YES; SDKROOT = iphoneos; SWIFT_VERSION = 6.0; }; name = Debug; };
+  A10000000000000000000012 = {isa = XCBuildConfiguration; buildSettings = {CLANG_ENABLE_MODULES = YES; SDKROOT = iphoneos; SWIFT_VERSION = 6.0; }; name = Release; };
+  A10000000000000000000013 = {isa = XCBuildConfiguration; buildSettings = {ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES; CODE_SIGN_ENTITLEMENTS = App/EvenHealthBridge.entitlements; CODE_SIGN_STYLE = Automatic; CURRENT_PROJECT_VERSION = 1; GENERATE_INFOPLIST_FILE = YES; INFOPLIST_KEY_CFBundleDisplayName = "Even Health Bridge"; INFOPLIST_KEY_NSHealthUpdateUsageDescription = "Salva in Apple Salute solo le misurazioni Even confermate dall'utente."; INFOPLIST_KEY_NSHealthShareUsageDescription = "Controlla i campioni importati da Even Health Bridge per evitare duplicati."; IPHONEOS_DEPLOYMENT_TARGET = 27.0; MARKETING_VERSION = 0.1.0; PRODUCT_BUNDLE_IDENTIFIER = com.rgzzn.EvenHealthBridge; PRODUCT_NAME = "$(TARGET_NAME)"; SUPPORTED_PLATFORMS = "iphoneos iphonesimulator"; SWIFT_STRICT_CONCURRENCY = complete; SWIFT_VERSION = 6.0; TARGETED_DEVICE_FAMILY = 1; }; name = Debug; };
+  A10000000000000000000014 = {isa = XCBuildConfiguration; buildSettings = {ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES; CODE_SIGN_ENTITLEMENTS = App/EvenHealthBridge.entitlements; CODE_SIGN_STYLE = Automatic; CURRENT_PROJECT_VERSION = 1; GENERATE_INFOPLIST_FILE = YES; INFOPLIST_KEY_CFBundleDisplayName = "Even Health Bridge"; INFOPLIST_KEY_NSHealthUpdateUsageDescription = "Salva in Apple Salute solo le misurazioni Even confermate dall'utente."; INFOPLIST_KEY_NSHealthShareUsageDescription = "Controlla i campioni importati da Even Health Bridge per evitare duplicati."; IPHONEOS_DEPLOYMENT_TARGET = 27.0; MARKETING_VERSION = 0.1.0; PRODUCT_BUNDLE_IDENTIFIER = com.rgzzn.EvenHealthBridge; PRODUCT_NAME = "$(TARGET_NAME)"; SUPPORTED_PLATFORMS = "iphoneos iphonesimulator"; SWIFT_STRICT_CONCURRENCY = complete; SWIFT_VERSION = 6.0; TARGETED_DEVICE_FAMILY = 1; }; name = Release; };
+ };
+ rootObject = A1000000000000000000000E;
+}
