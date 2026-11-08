@@ -4,6 +4,26 @@ import Testing
 import EvenHealthCore
 @testable import EvenHealthBridge
 
+private final class SyntheticArchiveMarker {}
+
+@MainActor @Test func coordinatorAnalyzesSyntheticZIPOnIOS() async throws {
+    let archive = try #require(Bundle(for: SyntheticArchiveMarker.self).url(forResource: "SyntheticSleep", withExtension: "zip"))
+    let coordinator = ImportCoordinator()
+    await coordinator.analyze(archive)
+
+    #expect(coordinator.error == nil)
+    let first = try #require(coordinator.dataset)
+    #expect(first.measurements.count == 2)
+    #expect(first.measurements.filter { $0.validation == .eligible }.count == 1)
+    #expect(first.measurements.filter { $0.validation == .duplicate }.count == 1)
+    #expect(first.warnings.count == 6)
+    #expect(first.warnings.allSatisfy { $0.hasPrefix("File mancante: ") })
+
+    await coordinator.analyze(archive)
+    #expect(coordinator.error == nil)
+    #expect(coordinator.dataset?.archiveHash == first.archiveHash)
+}
+
 @MainActor @Test func savedSleepSurvivesStoreReopen() throws {
     let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
     try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
