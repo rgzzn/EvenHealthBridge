@@ -10,6 +10,7 @@ enum DiagnosticLoggingService {
 
 @Model
 final class StoredImportSession {
+    // Historical one-row-per-archive records from the first app schema.
     @Attribute(.unique) var archiveHash: String
     var importedAt: Date
     var records: Int
@@ -22,6 +23,35 @@ final class StoredImportSession {
     var lastSyncedAt: Date?
 
     init(archiveHash: String, importedAt: Date, records: Int, duplicates: Int, excluded: Int, status: String) {
+        self.archiveHash = archiveHash
+        self.importedAt = importedAt
+        self.records = records
+        self.duplicates = duplicates
+        self.excluded = excluded
+        self.parserVersion = 1
+        self.mappingVersion = 1
+        self.status = status
+        self.writtenSamples = 0
+        self.lastSyncedAt = nil
+    }
+}
+
+@Model
+final class StoredImportAttempt {
+    @Attribute(.unique) var attemptID: UUID
+    var archiveHash: String
+    var importedAt: Date
+    var records: Int
+    var duplicates: Int
+    var excluded: Int
+    var parserVersion: Int
+    var mappingVersion: Int
+    var status: String
+    var writtenSamples: Int
+    var lastSyncedAt: Date?
+
+    init(attemptID: UUID, archiveHash: String, importedAt: Date, records: Int, duplicates: Int, excluded: Int, status: String) {
+        self.attemptID = attemptID
         self.archiveHash = archiveHash
         self.importedAt = importedAt
         self.records = records
@@ -146,6 +176,7 @@ final class ImportCoordinator {
     var persisted = false
     var writtenCount: Int?
     var progress: (completed: Int, total: Int)?
+    private var activeAttemptID: UUID?
 
     func analyze(_ url: URL) async {
         guard !Task.isCancelled else { return }
@@ -155,6 +186,7 @@ final class ImportCoordinator {
         }
         isWorking = true
         dataset = nil
+        activeAttemptID = nil
         error = nil
         persisted = false
         writtenCount = nil
@@ -174,11 +206,13 @@ final class ImportCoordinator {
                 guard let outcome else { throw ImportFailure.unreadableArchive }
                 return try outcome.get()
             }
-            dataset = try await withTaskCancellationHandler {
+            let parsed = try await withTaskCancellationHandler {
                 try await worker.value
             } onCancel: {
                 worker.cancel()
             }
+            dataset = parsed
+            activeAttemptID = UUID()
             DiagnosticLoggingService.logger.info("Archive analyzed; records: \(self.dataset?.measurements.count ?? 0, privacy: .public)")
         } catch is CancellationError {
             dataset = nil
@@ -193,8 +227,11 @@ final class ImportCoordinator {
         guard !isWorking, let dataset else { return }
         isWorking = true
         error = nil
+        progress = nil
+        writtenCount = nil
         defer { isWorking = false }
         do {
+            try recordStartedImport(in: context)
             writtenCount = try await SleepImportExecutor().run(dataset.measurements, writer: HealthKitService(), repository: SwiftDataSleepRepository(context: context)) { completed, total in
                 self.progress = (completed, total)
             }
@@ -211,18 +248,21 @@ final class ImportCoordinator {
         }
     }
 
+    func recordStartedImport(in context: ModelContext) throws {
+        guard let dataset else { return }
+        if persisted { activeAttemptID = UUID() }
+        let attempt = try currentAttempt(in: context, dataset: dataset)
+        attempt.status = "Importazione avviata; esito da verificare"
+        attempt.excluded = try excludedCount(in: context)
+        try context.save()
+        persisted = true
+    }
+
     private func recordInterruptedImport(in context: ModelContext) throws {
         guard let dataset else { return }
         let ids = Set(dataset.measurements.filter { $0.kind == .sleep }.map(\.id))
         let saved = try context.fetch(FetchDescriptor<StoredSample>()).filter { ids.contains($0.stableID) }.count
-        let hash = dataset.archiveHash
-        let descriptor = FetchDescriptor<StoredImportSession>(predicate: #Predicate { $0.archiveHash == hash })
-        let session: StoredImportSession
-        if let existing = try context.fetch(descriptor).first { session = existing }
-        else {
-            session = StoredImportSession(archiveHash: hash, importedAt: .now, records: dataset.measurements.count, duplicates: dataset.measurements.filter { $0.validation == .duplicate }.count, excluded: 0, status: "")
-            context.insert(session)
-        }
+        let session = try currentAttempt(in: context, dataset: dataset)
         session.writtenSamples = saved
         session.excluded = try excludedCount(in: context)
         session.status = "Importazione interrotta; \(saved) fasi salvate. Riprova per continuare."
@@ -231,30 +271,32 @@ final class ImportCoordinator {
 
     func saveAnalysis(in context: ModelContext) throws {
         guard let dataset else { return }
-        let hash = dataset.archiveHash
-        let descriptor = FetchDescriptor<StoredImportSession>(predicate: #Predicate { $0.archiveHash == hash })
-        if let existing = try context.fetch(descriptor).first {
-            if writtenCount != nil {
-                let ids = Set(dataset.measurements.filter { $0.kind == .sleep }.map(\.id))
-                let saved = try context.fetch(FetchDescriptor<StoredSample>()).filter { ids.contains($0.stableID) }.count
-                existing.writtenSamples = saved
-                existing.lastSyncedAt = .now
-                existing.status = "Sonno sincronizzato: \(saved) campioni, \(writtenCount ?? 0) nuovi in questo tentativo"
-            }
-            existing.excluded = try excludedCount(in: context)
-            try context.save()
-            persisted = true
-            return
+        let session = try currentAttempt(in: context, dataset: dataset)
+        if let writtenCount {
+            let ids = Set(dataset.measurements.filter { $0.kind == .sleep }.map(\.id))
+            let saved = try context.fetch(FetchDescriptor<StoredSample>()).filter { ids.contains($0.stableID) }.count
+            session.writtenSamples = saved
+            session.lastSyncedAt = .now
+            session.status = "Sonno sincronizzato: \(saved) campioni, \(writtenCount) nuovi in questo tentativo"
         }
-        let count = dataset.measurements.count
-        let duplicates = dataset.measurements.filter { $0.validation == .duplicate }.count
-        let status = writtenCount.map { "Sonno importato: \($0) nuovi campioni" } ?? "Analizzato; nessun campione scritto"
-        let session = StoredImportSession(archiveHash: hash, importedAt: .now, records: count, duplicates: duplicates, excluded: try excludedCount(in: context), status: status)
-        session.writtenSamples = writtenCount ?? 0
-        session.lastSyncedAt = writtenCount == nil ? nil : .now
-        context.insert(session)
+        session.excluded = try excludedCount(in: context)
         try context.save()
         persisted = true
+    }
+
+    private func currentAttempt(in context: ModelContext, dataset: ParsedDataset) throws -> StoredImportAttempt {
+        let id = activeAttemptID ?? UUID()
+        activeAttemptID = id
+        let descriptor = FetchDescriptor<StoredImportAttempt>(predicate: #Predicate { $0.attemptID == id })
+        if let existing = try context.fetch(descriptor).first { return existing }
+        let attempt = StoredImportAttempt(
+            attemptID: id, archiveHash: dataset.archiveHash, importedAt: .now,
+            records: dataset.measurements.count,
+            duplicates: dataset.measurements.filter { $0.validation == .duplicate }.count,
+            excluded: 0, status: "Analizzato; nessun campione scritto"
+        )
+        context.insert(attempt)
+        return attempt
     }
 
     private func excludedCount(in context: ModelContext) throws -> Int {
@@ -272,7 +314,7 @@ final class ImportCoordinator {
 struct EvenHealthBridgeApp: App {
     private let container: ModelContainer = {
         let configuration = ModelConfiguration(cloudKitDatabase: .none)
-        return try! ModelContainer(for: StoredImportSession.self, StoredSample.self, configurations: configuration)
+        return try! ModelContainer(for: StoredImportSession.self, StoredImportAttempt.self, StoredSample.self, configurations: configuration)
     }()
 
     var body: some Scene {

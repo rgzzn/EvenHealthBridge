@@ -52,6 +52,12 @@ public struct ParsedDataset: Sendable {
     public let measurements: [HealthMeasurement]
     public let warnings: [String]
     public let archiveHash: String
+
+    public init(measurements: [HealthMeasurement], warnings: [String], archiveHash: String) {
+        self.measurements = measurements
+        self.warnings = warnings
+        self.archiveHash = archiveHash
+    }
 }
 
 public struct EvenDataParser: Sendable {

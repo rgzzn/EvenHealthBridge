@@ -3,6 +3,20 @@ import SwiftData
 import UniformTypeIdentifiers
 import EvenHealthCore
 
+private protocol ImportHistoryRecord {
+    var importedAt: Date { get }
+    var records: Int { get }
+    var duplicates: Int { get }
+    var excluded: Int { get }
+    var parserVersion: Int { get }
+    var mappingVersion: Int { get }
+    var status: String { get }
+    var writtenSamples: Int { get }
+}
+
+extension StoredImportSession: ImportHistoryRecord {}
+extension StoredImportAttempt: ImportHistoryRecord {}
+
 struct ImportView: View {
     let coordinator: ImportCoordinator
     @Binding var analysisTask: Task<Void, Never>?
@@ -59,14 +73,23 @@ struct ImportView: View {
 }
 
 struct DashboardView: View {
-    @Query(sort: \StoredImportSession.importedAt, order: .reverse) private var sessions: [StoredImportSession]
+    @Query(sort: \StoredImportAttempt.importedAt, order: .reverse) private var attempts: [StoredImportAttempt]
+    @Query(sort: \StoredImportSession.importedAt, order: .reverse) private var legacySessions: [StoredImportSession]
     @Query private var savedSamples: [StoredSample]
+
+    private var latest: (any ImportHistoryRecord)? {
+        let attempt = attempts.first
+        let legacy = legacySessions.first
+        if let attempt, let legacy { return attempt.importedAt >= legacy.importedAt ? attempt : legacy }
+        if let attempt { return attempt }
+        return legacy
+    }
 
     var body: some View {
         Section("Riepilogo") {
             Label("Dati elaborati sul dispositivo", systemImage: "lock.shield")
             LabeledContent("Fasi del sonno salvate", value: "\(savedSamples.count)")
-            if let latest = sessions.first {
+            if let latest {
                 LabeledContent("Ultima analisi", value: latest.importedAt.formatted(date: .abbreviated, time: .shortened))
                 Text(latest.status).font(.footnote).foregroundStyle(.secondary)
             } else {
@@ -185,22 +208,33 @@ private struct CategorySummaryRow: View {
 }
 
 struct ImportHistoryView: View {
-    @Query(sort: \StoredImportSession.importedAt, order: .reverse) private var sessions: [StoredImportSession]
+    @Query(sort: \StoredImportAttempt.importedAt, order: .reverse) private var attempts: [StoredImportAttempt]
+    @Query(sort: \StoredImportSession.importedAt, order: .reverse) private var legacySessions: [StoredImportSession]
 
     var body: some View {
         List {
-            if sessions.isEmpty {
+            if attempts.isEmpty && legacySessions.isEmpty {
                 ContentUnavailableView("Nessuna importazione", systemImage: "clock", description: Text("Le analisi registrate compariranno qui."))
             }
-            ForEach(sessions) { session in
-                NavigationLink {
-                    ImportSessionDetailView(session: session)
-                } label: {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(session.importedAt.formatted(date: .abbreviated, time: .shortened)).font(.headline)
-                        Text(session.status).font(.subheadline)
-                        Text("\(session.records) record · \(session.duplicates) duplicati · \(session.writtenSamples) fasi salvate")
-                            .font(.caption).foregroundStyle(.secondary)
+            if !attempts.isEmpty {
+                Section("Importazioni") {
+                    ForEach(attempts) { attempt in
+                        NavigationLink {
+                            ImportSessionDetailView(session: attempt)
+                        } label: {
+                            ImportHistoryRow(session: attempt)
+                        }
+                    }
+                }
+            }
+            if !legacySessions.isEmpty {
+                Section("Cronologia precedente") {
+                    ForEach(legacySessions) { session in
+                        NavigationLink {
+                            ImportSessionDetailView(session: session)
+                        } label: {
+                            ImportHistoryRow(session: session)
+                        }
                     }
                 }
             }
@@ -209,8 +243,21 @@ struct ImportHistoryView: View {
     }
 }
 
+private struct ImportHistoryRow: View {
+    let session: any ImportHistoryRecord
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(session.importedAt.formatted(date: .abbreviated, time: .shortened)).font(.headline)
+            Text(session.status).font(.subheadline)
+            Text("\(session.records) record · \(session.duplicates) duplicati · \(session.writtenSamples) fasi salvate")
+                .font(.caption).foregroundStyle(.secondary)
+        }
+    }
+}
+
 private struct ImportSessionDetailView: View {
-    let session: StoredImportSession
+    let session: any ImportHistoryRecord
 
     var body: some View {
         Form {
@@ -232,7 +279,8 @@ private struct ImportSessionDetailView: View {
 
 struct SettingsView: View {
     @Environment(\.modelContext) private var context
-    @Query private var sessions: [StoredImportSession]
+    @Query private var attempts: [StoredImportAttempt]
+    @Query private var legacySessions: [StoredImportSession]
     @State private var showingClearConfirmation = false
     @State private var error: String?
 
@@ -250,7 +298,7 @@ struct SettingsView: View {
                 Button("Cancella cronologia delle analisi", role: .destructive) {
                     showingClearConfirmation = true
                 }
-                .disabled(sessions.isEmpty)
+                .disabled(attempts.isEmpty && legacySessions.isEmpty)
                 Text("Gli identificativi dei campioni salvati restano sul dispositivo per prevenire duplicati nelle importazioni future.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
@@ -260,7 +308,8 @@ struct SettingsView: View {
         .navigationTitle("Impostazioni")
         .confirmationDialog("Cancellare la cronologia delle analisi?", isPresented: $showingClearConfirmation) {
             Button("Cancella cronologia", role: .destructive) {
-                for session in sessions { context.delete(session) }
+                for attempt in attempts { context.delete(attempt) }
+                for session in legacySessions { context.delete(session) }
                 do { try context.save() }
                 catch { self.error = error.localizedDescription }
             }

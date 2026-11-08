@@ -38,5 +38,57 @@ import EvenHealthCore
 
 @MainActor private func makeContainer(at url: URL) throws -> ModelContainer {
     let configuration = ModelConfiguration(url: url, cloudKitDatabase: .none)
-    return try ModelContainer(for: StoredImportSession.self, StoredSample.self, configurations: configuration)
+    return try ModelContainer(for: StoredImportSession.self, StoredImportAttempt.self, StoredSample.self, configurations: configuration)
+}
+
+@MainActor @Test func repeatedArchiveCreatesDistinctHistoryAttempts() throws {
+    let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let storeURL = directory.appendingPathComponent("History.store")
+    let dataset = ParsedDataset(measurements: [], warnings: [], archiveHash: "same-archive")
+
+    do {
+        let container = try makeContainer(at: storeURL)
+        let context = ModelContext(container)
+        let first = ImportCoordinator()
+        first.dataset = dataset
+        try first.recordStartedImport(in: context)
+        try first.recordStartedImport(in: context)
+        let second = ImportCoordinator()
+        second.dataset = dataset
+        try second.saveAnalysis(in: context)
+        let attempts = try context.fetch(FetchDescriptor<StoredImportAttempt>())
+        #expect(attempts.count == 3)
+        #expect(Set(attempts.map(\.attemptID)).count == 3)
+        #expect(Set(attempts.map(\.archiveHash)) == ["same-archive"])
+        #expect(attempts.contains { $0.status == "Importazione avviata; esito da verificare" })
+    }
+
+    let reopened = try makeContainer(at: storeURL)
+    let context = ModelContext(reopened)
+    #expect(try context.fetchCount(FetchDescriptor<StoredImportAttempt>()) == 3)
+    #expect(try context.fetch(FetchDescriptor<StoredImportAttempt>()).contains { $0.status == "Importazione avviata; esito da verificare" })
+}
+
+@MainActor @Test func legacyHistorySurvivesAddingAttemptModel() throws {
+    let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let storeURL = directory.appendingPathComponent("Legacy.store")
+
+    do {
+        let oldConfiguration = ModelConfiguration(url: storeURL, cloudKitDatabase: .none)
+        let oldContainer = try ModelContainer(for: StoredImportSession.self, StoredSample.self, configurations: oldConfiguration)
+        let context = ModelContext(oldContainer)
+        context.insert(StoredImportSession(archiveHash: "old-archive", importedAt: .now, records: 7, duplicates: 2, excluded: 5, status: "Analizzato"))
+        try context.save()
+    }
+
+    let upgraded = try makeContainer(at: storeURL)
+    let context = ModelContext(upgraded)
+    let legacy = try context.fetch(FetchDescriptor<StoredImportSession>())
+    #expect(legacy.count == 1)
+    #expect(legacy.first?.archiveHash == "old-archive")
+    #expect(try context.fetchCount(FetchDescriptor<StoredImportAttempt>()) == 0)
 }
