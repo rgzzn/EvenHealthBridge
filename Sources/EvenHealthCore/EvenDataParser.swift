@@ -181,6 +181,14 @@ public struct MeasurementDeduplicator: Sendable {
 
     public func resolve(_ input: [HealthMeasurement]) -> [HealthMeasurement] {
         var seen: [String: HealthMeasurement] = [:]
+        var conflictingIDs = Set<String>()
+        for item in input {
+            if let previous = seen[item.id] {
+                if !sameMeasurement(previous, item) { conflictingIDs.insert(item.id) }
+            } else {
+                seen[item.id] = item
+            }
+        }
         let sessions = Array(Set(input.compactMap { item -> SleepInterval? in
             guard item.kind == .sleep, let end = item.sessionEnd, let start = EvenDataParser.parseDate(item.originalTimestamp) else { return nil }
             return SleepInterval(start: start, end: end)
@@ -219,17 +227,26 @@ public struct MeasurementDeduplicator: Sendable {
         for (id, variants) in shapesByID where variants.count > 1 {
             if let session = sessionByID[id] { disagreements.insert(session) }
         }
+        var repeated = Set<String>()
         return input.map { item in
             var result = item
-            if let previous = seen[item.id] {
-                result.validation = previous.value == item.value && previous.intervalEnd == item.intervalEnd && previous.sleepStage == item.sleepStage ? .duplicate : .conflict
-            } else { seen[item.id] = item }
+            if conflictingIDs.contains(item.id) { result.validation = .conflict }
+            else if !repeated.insert(item.id).inserted { result.validation = .duplicate }
             if item.kind == .sleep, let end = item.sessionEnd, let start = EvenDataParser.parseDate(item.originalTimestamp) {
                 let session = SleepInterval(start: start, end: end)
                 if overlapping.contains(session) || disagreements.contains(session) { result.validation = .conflict }
             }
             return result
         }
+    }
+
+    private func sameMeasurement(_ lhs: HealthMeasurement, _ rhs: HealthMeasurement) -> Bool {
+        lhs.kind == rhs.kind && lhs.timestamp == rhs.timestamp && lhs.value == rhs.value &&
+        lhs.components.allSatisfy { component in rhs.components[component.key].map { $0 == component.value } ?? true } &&
+        lhs.originalUnit == rhs.originalUnit &&
+        lhs.canonicalUnit == rhs.canonicalUnit && lhs.statistic == rhs.statistic &&
+        lhs.intervalEnd == rhs.intervalEnd && lhs.sleepStage == rhs.sleepStage &&
+        lhs.sessionEnd == rhs.sessionEnd && lhs.provenance == rhs.provenance
     }
 
     private struct SleepInterval: Hashable {
