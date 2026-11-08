@@ -150,6 +150,7 @@ struct ImportPreviewView: View {
     @Query private var savedSamples: [StoredSample]
     @State private var includeSleep = true
     @State private var importTask: Task<Void, Never>?
+    @AppStorage("previewInDeviceTimeZone") private var previewInDeviceTimeZone = false
 
     private var plan: SleepImportPlan {
         let imported = savedSamples.map {
@@ -167,7 +168,7 @@ struct ImportPreviewView: View {
                 LabeledContent("Periodo", value: "\(first.formatted(date: .abbreviated, time: .omitted)) – \(last.formatted(date: .abbreviated, time: .omitted))")
             }
             ForEach(summary.categories, id: \.kind) { category in
-                CategorySummaryRow(summary: category)
+                CategorySummaryRow(summary: category, previewInDeviceTimeZone: previewInDeviceTimeZone)
             }
         }
         Section("Sonno importabile") {
@@ -181,7 +182,7 @@ struct ImportPreviewView: View {
             if !plan.newSamples.isEmpty {
                 DisclosureGroup("Esamina le \(plan.newSamples.count) fasi nuove") {
                     ForEach(plan.newSamples) { sample in
-                        SleepStagePreviewRow(sample: sample)
+                        SleepStagePreviewRow(sample: sample, previewInDeviceTimeZone: previewInDeviceTimeZone)
                     }
                 }
             }
@@ -216,6 +217,7 @@ struct ImportPreviewView: View {
 
 private struct CategorySummaryRow: View {
     let summary: CategoryPreviewSummary
+    let previewInDeviceTimeZone: Bool
 
     private var title: String {
         switch summary.kind {
@@ -239,7 +241,8 @@ private struct CategorySummaryRow: View {
             LabeledContent("Esclusi", value: "\(summary.excluded)")
             LabeledContent("Conflitti", value: "\(summary.conflicts)")
             if let start = summary.periodStart, let end = summary.periodEnd {
-                LabeledContent("Periodo UTC", value: "\(start.ISO8601Format()) – \(end.ISO8601Format())")
+                LabeledContent(previewInDeviceTimeZone ? "Periodo nel fuso iPhone" : "Periodo UTC",
+                    value: "\(PreviewDateFormatting.string(start, inDeviceTimeZone: previewInDeviceTimeZone)) – \(PreviewDateFormatting.string(end, inDeviceTimeZone: previewInDeviceTimeZone))")
             }
             if !summary.sources.isEmpty {
                 let sourceText = summary.sources.sorted { $0.key < $1.key }
@@ -262,6 +265,7 @@ private struct CategorySummaryRow: View {
 
 private struct SleepStagePreviewRow: View {
     let sample: HealthMeasurement
+    let previewInDeviceTimeZone: Bool
 
     private var stageName: String {
         switch sample.sleepStage {
@@ -283,13 +287,22 @@ private struct SleepStagePreviewRow: View {
                     Text("\(duration / 60) min \(duration % 60) s")
                         .foregroundStyle(.secondary)
                 }
-                Text("\(sample.timestamp.ISO8601Format()) – \(end.ISO8601Format()) UTC")
+                Text("\(PreviewDateFormatting.string(sample.timestamp, inDeviceTimeZone: previewInDeviceTimeZone)) – \(PreviewDateFormatting.string(end, inDeviceTimeZone: previewInDeviceTimeZone))")
                     .font(.caption).foregroundStyle(.secondary)
                 Text("Sorgente: \(sample.source)")
                     .font(.caption).foregroundStyle(.secondary)
             }
             .accessibilityElement(children: .combine)
         }
+    }
+}
+
+enum PreviewDateFormatting {
+    static func string(_ date: Date, inDeviceTimeZone: Bool, deviceTimeZone: TimeZone = .current) -> String {
+        guard inDeviceTimeZone else { return date.ISO8601Format() }
+        let formatter = ISO8601DateFormatter()
+        formatter.timeZone = deviceTimeZone
+        return formatter.string(from: date)
     }
 }
 
@@ -369,6 +382,7 @@ struct SettingsView: View {
     @Query private var legacySessions: [StoredImportSession]
     @State private var showingClearConfirmation = false
     @State private var error: String?
+    @AppStorage("previewInDeviceTimeZone") private var previewInDeviceTimeZone = false
 
     var body: some View {
         Form {
@@ -379,6 +393,16 @@ struct SettingsView: View {
             Section("Apple Salute") {
                 NavigationLink("Permessi Salute") { HealthPermissionsView() }
                 Text("Solo le fasi del sonno validate possono essere scritte. L'app non modifica i dati di altre sorgenti.")
+            }
+            Section("Anteprima") {
+                Toggle("Mostra orari nel fuso dell'iPhone", isOn: $previewInDeviceTimeZone)
+                Text("Gli orari includono sempre il fuso: UTC o quello impostato sull'iPhone. Le date dei campioni salvati non cambiano.")
+                    .font(.footnote).foregroundStyle(.secondary)
+            }
+            Section("Diagnostica") {
+                NavigationLink("Stato dell'app") { DiagnosticsView() }
+                Text("Mostra solo versioni e conteggi locali, senza valori biometrici.")
+                    .font(.footnote).foregroundStyle(.secondary)
             }
             Section("Cronologia") {
                 Button("Cancella cronologia delle analisi", role: .destructive) {
@@ -402,5 +426,40 @@ struct SettingsView: View {
         } message: {
             Text("I campioni già importati e i loro identificativi rimangono in Apple Salute e sul dispositivo.")
         }
+    }
+}
+
+private struct DiagnosticsView: View {
+    @Query(sort: \StoredImportAttempt.importedAt, order: .reverse) private var attempts: [StoredImportAttempt]
+    @Query private var legacySessions: [StoredImportSession]
+    @Query private var savedSamples: [StoredSample]
+
+    private var appVersion: String {
+        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?"
+        let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "?"
+        return "\(version) (\(build))"
+    }
+
+    var body: some View {
+        Form {
+            Section("Versioni") {
+                LabeledContent("App", value: appVersion)
+                LabeledContent("Parser", value: "\(ImportFormatVersion.parser)")
+                LabeledContent("Mapping Salute", value: "\(ImportFormatVersion.mapping)")
+            }
+            Section("Stato locale") {
+                LabeledContent("Tentativi registrati", value: "\(attempts.count)")
+                LabeledContent("Importazioni precedenti", value: "\(legacySessions.count)")
+                LabeledContent("Fasi registrate", value: "\(savedSamples.count)")
+                if let latest = attempts.first {
+                    LabeledContent("Ultimo tentativo", value: latest.importedAt.formatted(date: .abbreviated, time: .shortened))
+                    Text(latest.status).font(.footnote).foregroundStyle(.secondary)
+                }
+            }
+            Section("Privacy") {
+                Text("Questi conteggi sono letti dal dispositivo. Nessun dato viene inviato all'esterno.")
+            }
+        }
+        .navigationTitle("Diagnostica")
     }
 }

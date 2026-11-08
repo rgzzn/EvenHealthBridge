@@ -19,7 +19,7 @@ Il parser legge tutti e sette i CSV; i dettagli dello schema sono in [Docs/Datas
 
 Le sessioni di sonno oltre 24 ore sono scartate come non plausibili. Se due righe della stessa sorgente descrivono fasi diverse per la stessa sessione, l'intera sessione è classificata come conflitto; copie identiche vengono deduplicate. Il lettore ZIP rifiuta archivi oltre 50 MB e limita la dimensione dei CSV decompressi prima di analizzarli.
 
-L'anteprima espone per ciascuna categoria misurazioni analizzate, validate, nuove, già importate, duplicate nello ZIP, escluse, conflitti, sorgenti e periodo UTC. Per il sonno ogni fase è una misurazione, quindi il conteggio differisce dal numero di righe `sleep.csv`. Le fasi nuove sono elencate con tipo, orario UTC, durata e sorgente prima del consenso alla scrittura.
+L'anteprima espone per ciascuna categoria misurazioni analizzate, validate, nuove, già importate, duplicate nello ZIP, escluse, conflitti, sorgenti e periodo UTC. Per il sonno ogni fase è una misurazione, quindi il conteggio differisce dal numero di righe `sleep.csv`. Le fasi nuove sono elencate con tipo, orario, durata e sorgente prima del consenso alla scrittura. Nelle Impostazioni puoi scegliere se visualizzare gli orari in UTC o nel fuso dell'iPhone; in entrambi i casi è mostrato l'offset temporale.
 
 Passi, calorie, frequenza cardiaca, HRV, SpO₂ e temperatura sono visibili nell'anteprima ma esclusi dalla scrittura: l'export non fornisce ancora le unità e/o gli intervalli o il significato statistico necessari per un mapping sicuro. In particolare HRV non specifica SDNN, e min/max/avg non sono tre campioni distinti. Un aggiornamento futuro richiederà documentazione attendibile e test dedicati.
 
@@ -52,6 +52,8 @@ I test iOS usano store SwiftData temporanei: verificano che un ID di fase soprav
 L'apertura di un documento ZIP è stata provata sul simulatore con `Tests/Fixtures/sleep.csv` inserito in un archivio sintetico; l'anteprima è comparsa. La comparsa dell'app nel menu Condividi e il selettore Files su iPhone fisico restano da verificare.
 
 Nell'app puoi annullare l'analisi di uno ZIP in corso. Dalle impostazioni puoi cancellare la cronologia delle analisi; gli ID dei campioni HealthKit restano conservati localmente per evitare nuove scritture duplicate.
+
+La schermata **Diagnostica** nelle Impostazioni mostra versione dell'app, versioni di parser e mapping, conteggi locali e stato dell'ultimo tentativo. Non espone valori biometrici e non invia dati.
 
 Ogni nuova analisi registrata e ogni nuovo tentativo di scrittura creano una voce di cronologia, anche se lo ZIP ha lo stesso hash di uno precedente. Quando avvii una scrittura, l'app salva prima una voce con esito da verificare: se si arresta improvvisamente, la voce rimane visibile. Le vecchie voci del primo schema compaiono nella sezione **Cronologia precedente**.
 

@@ -92,3 +92,13 @@ import EvenHealthCore
     #expect(legacy.first?.archiveHash == "old-archive")
     #expect(try context.fetchCount(FetchDescriptor<StoredImportAttempt>()) == 0)
 }
+
+@Test func previewDatesKeepDistinctOffsetsAcrossDaylightSaving() throws {
+    let rome = try #require(TimeZone(identifier: "Europe/Rome"))
+    let first = try #require(EvenDataParser.parseDate("2026-10-25T02:30:00+02:00"))
+    let second = try #require(EvenDataParser.parseDate("2026-10-25T02:30:00+01:00"))
+    #expect(PreviewDateFormatting.string(first, inDeviceTimeZone: true, deviceTimeZone: rome).hasSuffix("+02:00"))
+    #expect(PreviewDateFormatting.string(second, inDeviceTimeZone: true, deviceTimeZone: rome).hasSuffix("+01:00"))
+    #expect(PreviewDateFormatting.string(first, inDeviceTimeZone: false, deviceTimeZone: rome) !=
+            PreviewDateFormatting.string(second, inDeviceTimeZone: false, deviceTimeZone: rome))
+}

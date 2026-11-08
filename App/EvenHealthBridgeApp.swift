@@ -8,6 +8,11 @@ enum DiagnosticLoggingService {
     static let logger = Logger(subsystem: "com.rgzzn.EvenHealthBridge", category: "Import")
 }
 
+enum ImportFormatVersion {
+    static let parser = 1
+    static let mapping = 1
+}
+
 @Model
 final class StoredImportSession {
     // Historical one-row-per-archive records from the first app schema.
@@ -28,8 +33,8 @@ final class StoredImportSession {
         self.records = records
         self.duplicates = duplicates
         self.excluded = excluded
-        self.parserVersion = 1
-        self.mappingVersion = 1
+        self.parserVersion = ImportFormatVersion.parser
+        self.mappingVersion = ImportFormatVersion.mapping
         self.status = status
         self.writtenSamples = 0
         self.lastSyncedAt = nil
@@ -57,8 +62,8 @@ final class StoredImportAttempt {
         self.records = records
         self.duplicates = duplicates
         self.excluded = excluded
-        self.parserVersion = 1
-        self.mappingVersion = 1
+        self.parserVersion = ImportFormatVersion.parser
+        self.mappingVersion = ImportFormatVersion.mapping
         self.status = status
         self.writtenSamples = 0
         self.lastSyncedAt = nil
