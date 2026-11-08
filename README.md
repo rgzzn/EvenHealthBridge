@@ -7,9 +7,9 @@ App iPhone locale per analizzare gli export ZIP di Even Realities R1 e importare
 1. Apri `EvenHealthBridge.xcodeproj` con Xcode 27.
 2. Seleziona un team di firma per il target `EvenHealthBridge` e abilita le capability HealthKit e Data Protection. Il file di entitlements e le descrizioni d'uso sono già presenti.
 3. Compila su un iPhone con iOS 27. HealthKit può non essere disponibile nel simulatore.
-4. Esporta lo ZIP dall'app Even Realities, tocca **Seleziona archivio ZIP**, controlla l'anteprima e scegli **Importa il sonno in Apple Salute**. La richiesta di autorizzazione compare solo a quel punto.
+4. Esporta lo ZIP dall'app Even Realities. Aprilo tramite **Seleziona archivio ZIP** nell'app oppure usa **Apri in Even Health Bridge** da Files o dal menu Condividi, se mostrato dal sistema. Controlla l'anteprima e scegli **Importa il sonno in Apple Salute**. La richiesta di autorizzazione compare solo a quel punto.
 
-L'app legge lo ZIP tramite Files e security scoped URL. Non conserva una copia dell'archivio. Le sessioni e gli identificativi dei campioni salvati restano in SwiftData sul dispositivo, con CloudKit disabilitato esplicitamente e protezione dati iOS completa. Nessun server, account o analytics.
+L'app registra il tipo ZIP come documento apribile e legge gli URL con security scope e file coordination, anche per i provider Files. Non conserva una copia dell'archivio. Le sessioni e gli identificativi dei campioni salvati restano in SwiftData sul dispositivo, con CloudKit disabilitato esplicitamente e protezione dati iOS completa. Nessun server, account o analytics.
 
 ## Dati e limiti
 
@@ -37,5 +37,7 @@ EVEN_HEALTH_LOCAL_ARCHIVE=/percorso/privato/Even_health_data_20261108.zip swift 
 Il dataset reale è escluso da Git tramite `.gitignore`; per i test condivisi usare solo fixture sintetiche.
 
 La build e il lancio sono stati verificati su un simulatore iOS 27. La scrittura reale in Apple Salute, la firma per dispositivo e i permessi HealthKit vanno verificati su un iPhone fisico con un team di sviluppo configurato.
+
+L'apertura di un documento ZIP è stata provata sul simulatore con `Tests/Fixtures/sleep.csv` inserito in un archivio sintetico; l'anteprima è comparsa. La comparsa dell'app nel menu Condividi e il selettore Files su iPhone fisico restano da verificare.
 
 Nell'app puoi annullare l'analisi di uno ZIP in corso. Dalle impostazioni puoi cancellare la cronologia delle analisi; gli ID dei campioni HealthKit restano conservati localmente per evitare nuove scritture duplicate.

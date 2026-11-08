@@ -1,0 +1,3 @@
+timestamp,start_ts,end_ts,total_time,wake_time,rem_time,light_time,deep_time,stages,source,tz,body_temp_delta
+2026-01-01T00:00:00Z,2026-01-01T00:00:00Z,2026-01-01T00:01:00Z,60,0,0,60,0,"[{""type"":2,""half_minutes"":2}]",R1,+00:00,
+2026-01-01T00:00:00Z,2026-01-01T00:00:00Z,2026-01-01T00:01:00Z,60,0,0,60,0,"[{""type"":2,""half_minutes"":2}]",ring1Notify,+00:00,

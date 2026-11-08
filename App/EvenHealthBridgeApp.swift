@@ -103,12 +103,13 @@ final class StoredSample {
 }
 
 enum ImportFailure: LocalizedError {
-    case healthUnavailable, permissionDenied, invalidSample
+    case healthUnavailable, permissionDenied, invalidSample, unreadableArchive
     var errorDescription: String? {
         switch self {
         case .healthUnavailable: "Apple Salute non è disponibile su questo dispositivo."
         case .permissionDenied: "Autorizzazione alla scrittura del sonno non concessa."
         case .invalidSample: "Campione di sonno non valido."
+        case .unreadableArchive: "Impossibile leggere il file selezionato."
         }
     }
 }
@@ -133,7 +134,16 @@ final class ImportCoordinator {
         defer { if access { url.stopAccessingSecurityScopedResource() } }
         do {
             let parser = EvenDataParser()
-            let worker = Task.detached(priority: .userInitiated) { try parser.parseArchive(at: url) }
+            let worker = Task.detached(priority: .userInitiated) {
+                var coordinationError: NSError?
+                var outcome: Result<ParsedDataset, Error>?
+                NSFileCoordinator().coordinate(readingItemAt: url, options: [], error: &coordinationError) { readableURL in
+                    outcome = Result { try parser.parseArchive(at: readableURL) }
+                }
+                if let coordinationError { throw coordinationError }
+                guard let outcome else { throw ImportFailure.unreadableArchive }
+                return try outcome.get()
+            }
             dataset = try await withTaskCancellationHandler {
                 try await worker.value
             } onCancel: {
@@ -152,6 +162,7 @@ final class ImportCoordinator {
     func importSleep(in context: ModelContext) async {
         guard let dataset else { return }
         isWorking = true
+        error = nil
         defer { isWorking = false }
         do {
             writtenCount = try await SleepImportExecutor().run(dataset.measurements, writer: HealthKitService(), repository: SwiftDataSleepRepository(context: context)) { completed, total in
@@ -159,6 +170,10 @@ final class ImportCoordinator {
             }
             try saveAnalysis(in: context)
             DiagnosticLoggingService.logger.info("Sleep import completed; written: \(self.writtenCount ?? 0, privacy: .public)")
+        } catch is CancellationError {
+            self.error = "Importazione interrotta. Puoi riprendere quando vuoi."
+            try? recordInterruptedImport(in: context)
+            DiagnosticLoggingService.logger.info("Sleep import cancelled")
         } catch {
             self.error = error.localizedDescription
             try? recordInterruptedImport(in: context)
@@ -225,20 +240,33 @@ struct EvenHealthBridgeApp: App {
 }
 
 struct RootView: View {
+    @State private var coordinator = ImportCoordinator()
+    @State private var analysisTask: Task<Void, Never>?
+    @State private var selectedTab = 0
+
     var body: some View {
-        TabView {
+        TabView(selection: $selectedTab) {
             NavigationStack {
-                ImportView()
+                ImportView(coordinator: coordinator, analysisTask: $analysisTask)
             }
             .tabItem { Label("Importa", systemImage: "square.and.arrow.down") }
+            .tag(0)
             NavigationStack {
                 ImportHistoryView()
             }
             .tabItem { Label("Cronologia", systemImage: "clock") }
+            .tag(1)
             NavigationStack {
                 SettingsView()
             }
             .tabItem { Label("Impostazioni", systemImage: "gear") }
+            .tag(2)
+        }
+        .onOpenURL { url in
+            guard url.isFileURL, url.pathExtension.lowercased() == "zip" else { return }
+            selectedTab = 0
+            analysisTask?.cancel()
+            analysisTask = Task { await coordinator.analyze(url) }
         }
     }
 }

@@ -4,9 +4,9 @@ import UniformTypeIdentifiers
 import EvenHealthCore
 
 struct ImportView: View {
-    @State private var coordinator = ImportCoordinator()
+    let coordinator: ImportCoordinator
+    @Binding var analysisTask: Task<Void, Never>?
     @State private var showImporter = false
-    @State private var analysisTask: Task<Void, Never>?
 
     var body: some View {
         List {
@@ -94,6 +94,7 @@ struct ImportPreviewView: View {
     @Environment(\.modelContext) private var context
     @Query private var savedSamples: [StoredSample]
     @State private var includeSleep = true
+    @State private var importTask: Task<Void, Never>?
 
     private var plan: SleepImportPlan {
         let imported = savedSamples.map {
@@ -124,10 +125,13 @@ struct ImportPreviewView: View {
                     .foregroundStyle(.green)
             }
             Button("Importa il sonno in Apple Salute") {
-                Task { await coordinator.importSleep(in: context) }
+                importTask = Task { await coordinator.importSleep(in: context) }
             }
             .disabled(coordinator.isWorking || !includeSleep || plan.newSamples.isEmpty)
             .accessibilityHint("Richiede il permesso di scrittura del sonno prima di salvare i campioni")
+            if coordinator.isWorking && coordinator.progress != nil {
+                Button("Interrompi importazione", role: .cancel) { importTask?.cancel() }
+            }
             Button(coordinator.persisted ? "Analisi registrata" : "Registra solo l'analisi") {
                 do { try coordinator.saveAnalysis(in: context) }
                 catch { coordinator.error = error.localizedDescription }

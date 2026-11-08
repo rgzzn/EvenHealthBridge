@@ -7,11 +7,15 @@ import Testing
     var authorizationCalls = 0
     var saved: [String] = []
     var failAfter: Int?
+    var cancelAfterFirstSave = false
 
     func authorize() async throws { authorizationCalls += 1 }
     func save(_ sample: HealthMeasurement) async throws {
         if let failAfter, saved.count >= failAfter { throw Failure.interrupted }
         saved.append(sample.id)
+        if cancelAfterFirstSave && saved.count == 1 {
+            withUnsafeCurrentTask { $0?.cancel() }
+        }
     }
 }
 
@@ -53,4 +57,18 @@ private func sample(_ id: String, start: TimeInterval, end: TimeInterval) -> Hea
     let resumed = try await SleepImportExecutor().run(input, writer: writer, repository: repository)
     #expect(resumed == 1)
     #expect(repository.stored.map(\.id) == ["a", "b"])
+}
+
+@MainActor @Test func executorStopsAfterCancellation() async {
+    let writer = FakeWriter()
+    writer.cancelAfterFirstSave = true
+    let repository = FakeRepository()
+    let input = [sample("a", start: 0, end: 60), sample("b", start: 60, end: 120)]
+    let task = Task { try await SleepImportExecutor().run(input, writer: writer, repository: repository) }
+    do {
+        _ = try await task.value
+        Issue.record("Expected cancellation")
+    } catch is CancellationError { }
+    catch { Issue.record("Unexpected error: \(error)") }
+    #expect(repository.stored.map(\.id) == ["a"])
 }
