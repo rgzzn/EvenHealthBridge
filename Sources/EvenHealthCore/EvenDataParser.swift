@@ -25,6 +25,27 @@ public struct HealthMeasurement: Sendable, Codable, Identifiable {
     public let sessionEnd: Date?
     public let provenance: String
     public var validation: ImportValidation
+
+    public init(id: String, kind: MeasurementKind, timestamp: Date, originalTimestamp: String,
+                source: String, value: Decimal?, components: [String: Decimal], originalUnit: String?,
+                canonicalUnit: String?, statistic: String?, intervalEnd: Date?, sleepStage: Int?,
+                sessionEnd: Date?, provenance: String, validation: ImportValidation) {
+        self.id = id
+        self.kind = kind
+        self.timestamp = timestamp
+        self.originalTimestamp = originalTimestamp
+        self.source = source
+        self.value = value
+        self.components = components
+        self.originalUnit = originalUnit
+        self.canonicalUnit = canonicalUnit
+        self.statistic = statistic
+        self.intervalEnd = intervalEnd
+        self.sleepStage = sleepStage
+        self.sessionEnd = sessionEnd
+        self.provenance = provenance
+        self.validation = validation
+    }
 }
 
 public struct ParsedDataset: Sendable {

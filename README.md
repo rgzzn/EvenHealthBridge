@@ -26,6 +26,7 @@ I log diagnostici contengono solo conteggi ed eventi, senza valori biometrici. L
 ```sh
 swift test
 xcodebuild -project EvenHealthBridge.xcodeproj -scheme EvenHealthBridge -sdk iphonesimulator -destination 'platform=iOS Simulator,name=iPhone 18 Pro' CODE_SIGNING_ALLOWED=NO build
+xcodebuild -project EvenHealthBridge.xcodeproj -scheme EvenHealthBridge -destination 'platform=iOS Simulator,name=iPhone 18 Pro' CODE_SIGNING_ALLOWED=NO test -only-testing:EvenHealthBridgeAppTests
 ```
 
 Un test facoltativo esamina l'archivio reale solo sul computer locale, senza distribuirlo:
@@ -37,6 +38,8 @@ EVEN_HEALTH_LOCAL_ARCHIVE=/percorso/privato/Even_health_data_20261108.zip swift 
 Il dataset reale è escluso da Git tramite `.gitignore`; per i test condivisi usare solo fixture sintetiche.
 
 La build e il lancio sono stati verificati su un simulatore iOS 27. La scrittura reale in Apple Salute, la firma per dispositivo e i permessi HealthKit vanno verificati su un iPhone fisico con un team di sviluppo configurato.
+
+Il test iOS `savedSleepSurvivesStoreReopen` usa uno store SwiftData temporaneo: registra un ID di fase, riapre lo store e verifica che una seconda pianificazione dello stesso campione non generi nuove scritture. Non esegue una scrittura HealthKit reale.
 
 L'apertura di un documento ZIP è stata provata sul simulatore con `Tests/Fixtures/sleep.csv` inserito in un archivio sintetico; l'anteprima è comparsa. La comparsa dell'app nel menu Condividi e il selettore Files su iPhone fisico restano da verificare.
 
