@@ -124,7 +124,13 @@ final class ImportCoordinator {
     var progress: (completed: Int, total: Int)?
 
     func analyze(_ url: URL) async {
+        guard !Task.isCancelled else { return }
+        guard !isWorking else {
+            error = "Attendi la fine dell'importazione prima di aprire un altro archivio."
+            return
+        }
         isWorking = true
+        dataset = nil
         error = nil
         persisted = false
         writtenCount = nil
@@ -160,7 +166,7 @@ final class ImportCoordinator {
     }
 
     func importSleep(in context: ModelContext) async {
-        guard let dataset else { return }
+        guard !isWorking, let dataset else { return }
         isWorking = true
         error = nil
         defer { isWorking = false }
@@ -194,6 +200,7 @@ final class ImportCoordinator {
             context.insert(session)
         }
         session.writtenSamples = saved
+        session.excluded = try excludedCount(in: context)
         session.status = "Importazione interrotta; \(saved) fasi salvate. Riprova per continuare."
         try context.save()
     }
@@ -209,20 +216,31 @@ final class ImportCoordinator {
                 existing.writtenSamples = saved
                 existing.lastSyncedAt = .now
                 existing.status = "Sonno sincronizzato: \(saved) campioni, \(writtenCount ?? 0) nuovi in questo tentativo"
-                try context.save()
             }
+            existing.excluded = try excludedCount(in: context)
+            try context.save()
             persisted = true
             return
         }
         let count = dataset.measurements.count
         let duplicates = dataset.measurements.filter { $0.validation == .duplicate }.count
         let status = writtenCount.map { "Sonno importato: \($0) nuovi campioni" } ?? "Analizzato; nessun campione scritto"
-        let session = StoredImportSession(archiveHash: hash, importedAt: .now, records: count, duplicates: duplicates, excluded: count - duplicates - (writtenCount ?? 0), status: status)
+        let session = StoredImportSession(archiveHash: hash, importedAt: .now, records: count, duplicates: duplicates, excluded: try excludedCount(in: context), status: status)
         session.writtenSamples = writtenCount ?? 0
         session.lastSyncedAt = writtenCount == nil ? nil : .now
         context.insert(session)
         try context.save()
         persisted = true
+    }
+
+    private func excludedCount(in context: ModelContext) throws -> Int {
+        guard let dataset else { return 0 }
+        let invalidOrAmbiguous = dataset.measurements.filter {
+            $0.validation != .eligible && $0.validation != .duplicate
+        }.count
+        let saved = try SwiftDataSleepRepository(context: context).existingSamples()
+        let overlapConflicts = SleepImportPlanner().plan(dataset.measurements, imported: saved).conflicts
+        return invalidOrAmbiguous + overlapConflicts
     }
 }
 
@@ -265,8 +283,13 @@ struct RootView: View {
         .onOpenURL { url in
             guard url.isFileURL, url.pathExtension.lowercased() == "zip" else { return }
             selectedTab = 0
-            analysisTask?.cancel()
-            analysisTask = Task { await coordinator.analyze(url) }
+            let previous = analysisTask
+            analysisTask = Task {
+                previous?.cancel()
+                await previous?.value
+                guard !Task.isCancelled else { return }
+                await coordinator.analyze(url)
+            }
         }
     }
 }

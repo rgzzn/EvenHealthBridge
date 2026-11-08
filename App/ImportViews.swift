@@ -43,7 +43,15 @@ struct ImportView: View {
         .fileImporter(isPresented: $showImporter, allowedContentTypes: [.zip], allowsMultipleSelection: false) { result in
             switch result {
             case .success(let urls):
-                if let url = urls.first { analysisTask = Task { await coordinator.analyze(url) } }
+                if let url = urls.first {
+                    let previous = analysisTask
+                    analysisTask = Task {
+                        previous?.cancel()
+                        await previous?.value
+                        guard !Task.isCancelled else { return }
+                        await coordinator.analyze(url)
+                    }
+                }
             case .failure(let error): coordinator.error = error.localizedDescription
             }
         }
@@ -136,7 +144,7 @@ struct ImportPreviewView: View {
                 do { try coordinator.saveAnalysis(in: context) }
                 catch { coordinator.error = error.localizedDescription }
             }
-            .disabled(coordinator.persisted)
+            .disabled(coordinator.persisted || coordinator.isWorking)
         }
         if !dataset.warnings.isEmpty {
             Section("Avvisi") {

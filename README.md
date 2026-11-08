@@ -41,3 +41,5 @@ La build e il lancio sono stati verificati su un simulatore iOS 27. La scrittura
 L'apertura di un documento ZIP è stata provata sul simulatore con `Tests/Fixtures/sleep.csv` inserito in un archivio sintetico; l'anteprima è comparsa. La comparsa dell'app nel menu Condividi e il selettore Files su iPhone fisico restano da verificare.
 
 Nell'app puoi annullare l'analisi di uno ZIP in corso. Dalle impostazioni puoi cancellare la cronologia delle analisi; gli ID dei campioni HealthKit restano conservati localmente per evitare nuove scritture duplicate.
+
+Se apri un altro ZIP durante l'analisi, l'app attende la cancellazione dell'analisi precedente prima di iniziare la nuova. Durante la scrittura in Salute, un nuovo archivio viene rifiutato per mantenere coerente la cronologia dell'importazione. Nel riepilogo, i campioni già importati sono distinti dai dati esclusi per ambiguità o conflitto.
