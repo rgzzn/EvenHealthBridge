@@ -91,6 +91,17 @@ final class StoredSample {
 @MainActor struct HealthKitService: SleepSampleWriting {
     private let store = HKHealthStore()
 
+    static func sleepWriteStatus() -> String {
+        guard HKHealthStore.isHealthDataAvailable(),
+              let type = HKObjectType.categoryType(forIdentifier: .sleepAnalysis) else { return "Non disponibile" }
+        switch HKHealthStore().authorizationStatus(for: type) {
+        case .sharingAuthorized: return "Scrittura consentita"
+        case .sharingDenied: return "Scrittura negata"
+        case .notDetermined: return "Non ancora richiesta"
+        @unknown default: return "Stato sconosciuto"
+        }
+    }
+
     func authorize() async throws {
         guard HKHealthStore.isHealthDataAvailable() else { throw ImportFailure.healthUnavailable }
         guard let type = HKObjectType.categoryType(forIdentifier: .sleepAnalysis) else { throw ImportFailure.healthUnavailable }

@@ -24,21 +24,11 @@ struct ImportView: View {
 
     var body: some View {
         List {
-            DashboardView()
-            Section("Nuova importazione") {
-                Button {
-                    showImporter = true
-                } label: {
-                    Label("Seleziona archivio ZIP", systemImage: "doc.zipper")
-                        .font(.headline)
-                }
-                .disabled(coordinator.isWorking)
-                if coordinator.isWorking && coordinator.progress == nil {
+            DashboardView(isWorking: coordinator.isWorking) { showImporter = true }
+            if coordinator.isWorking && coordinator.progress == nil {
+                Section("Analisi") {
                     Button("Annulla analisi", role: .cancel) { analysisTask?.cancel() }
                 }
-                Text("Scegli un export Even Realities da Files. L'analisi avviene sul dispositivo.")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
             }
             if coordinator.isWorking || coordinator.progress != nil {
                 ImportProgressView(coordinator: coordinator)
@@ -73,9 +63,13 @@ struct ImportView: View {
 }
 
 struct DashboardView: View {
+    let isWorking: Bool
+    let openArchive: () -> Void
+    @Environment(\.scenePhase) private var scenePhase
     @Query(sort: \StoredImportAttempt.importedAt, order: .reverse) private var attempts: [StoredImportAttempt]
     @Query(sort: \StoredImportSession.importedAt, order: .reverse) private var legacySessions: [StoredImportSession]
     @Query private var savedSamples: [StoredSample]
+    @State private var healthStatus = "Non verificato"
 
     private var latest: (any ImportHistoryRecord)? {
         let attempt = attempts.first
@@ -85,17 +79,47 @@ struct DashboardView: View {
         return legacy
     }
 
+    private var lastSync: Date? {
+        (attempts.compactMap(\.lastSyncedAt) + legacySessions.compactMap(\.lastSyncedAt)).max()
+    }
+
+    private var importedCategories: String {
+        let names = Set(savedSamples.map(\.category)).sorted().map { $0 == "sleep" ? "Sonno" : $0 }
+        return names.isEmpty ? "Nessuna" : names.joined(separator: ", ")
+    }
+
     var body: some View {
         Section("Riepilogo") {
             Label("Dati elaborati sul dispositivo", systemImage: "lock.shield")
-            LabeledContent("Fasi del sonno salvate", value: "\(savedSamples.count)")
+            LabeledContent("Apple Salute · sonno", value: healthStatus)
+            LabeledContent("Categorie importate", value: importedCategories)
+            LabeledContent("Fasi del sonno registrate", value: "\(savedSamples.count)")
+            if let first = savedSamples.map(\.start).min(), let last = savedSamples.map(\.end).max() {
+                LabeledContent("Periodo importato", value: "\(first.formatted(date: .abbreviated, time: .omitted)) – \(last.formatted(date: .abbreviated, time: .omitted))")
+            }
+            if let lastSync {
+                LabeledContent("Ultima sincronizzazione", value: lastSync.formatted(date: .abbreviated, time: .shortened))
+            } else {
+                LabeledContent("Ultima sincronizzazione", value: "Mai")
+            }
             if let latest {
                 LabeledContent("Ultima analisi", value: latest.importedAt.formatted(date: .abbreviated, time: .shortened))
                 Text(latest.status).font(.footnote).foregroundStyle(.secondary)
-            } else {
-                Text("Nessuna importazione registrata")
-                    .foregroundStyle(.secondary)
             }
+            Button(action: openArchive) {
+                Label("Seleziona archivio ZIP", systemImage: "doc.zipper")
+                    .font(.headline)
+            }
+            .disabled(isWorking)
+            Text("Scegli un export Even Realities da Files. L'analisi avviene sul dispositivo.")
+                .font(.footnote).foregroundStyle(.secondary)
+        }
+        .onAppear { healthStatus = HealthKitService.sleepWriteStatus() }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active { healthStatus = HealthKitService.sleepWriteStatus() }
+        }
+        .onChange(of: isWorking) { _, working in
+            if !working { healthStatus = HealthKitService.sleepWriteStatus() }
         }
     }
 }

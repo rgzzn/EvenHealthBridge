@@ -11,6 +11,8 @@ App iPhone locale per analizzare gli export ZIP di Even Realities R1 e importare
 
 L'app registra il tipo ZIP come documento apribile e legge gli URL con security scope e file coordination, anche per i provider Files. Non conserva una copia dell'archivio. Le sessioni e gli identificativi dei campioni salvati restano in SwiftData sul dispositivo, con CloudKit disabilitato esplicitamente e protezione dati iOS completa. Nessun server, account o analytics.
 
+Il riepilogo iniziale mostra lo stato della scrittura del sonno in Apple Salute, le categorie importate, il numero e il periodo delle fasi registrate, l'ultima sincronizzazione e l'ultima analisi. Il pulsante per aprire un archivio ZIP è nello stesso riepilogo; lo stato dei permessi si aggiorna al ritorno nell'app e al termine dell'importazione.
+
 ## Dati e limiti
 
 Il parser legge tutti e sette i CSV; i dettagli dello schema sono in [Docs/DatasetAnalysis.md](Docs/DatasetAnalysis.md). Per il sonno convalida che le durate delle fasi corrispondano agli aggregati e all'intervallo della sessione. Codici: 0 veglia, 1 REM, 2 leggero/Core, 3 profondo. Le sessioni sovrapposte sono escluse; solo le fasi validate e senza conflitti sono idonee alla scrittura.
