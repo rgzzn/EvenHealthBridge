@@ -1,39 +1,47 @@
 # Even Health Bridge
 
-App iPhone locale per analizzare gli export ZIP di Even Realities R1 e importare in Apple Salute le fasi del sonno verificate. Richiede iOS 27, Xcode 27 e Swift 6.
+A local iPhone app that analyses Even Realities R1 ZIP exports and imports verified sleep stages into Apple Health. It requires iOS 27, Xcode 27, and Swift 6.
 
-## Avvio
+## Getting started
 
-1. Apri `EvenHealthBridge.xcodeproj` con Xcode 27.
-2. Seleziona un team di firma per il target `EvenHealthBridge` e abilita le capability HealthKit e Data Protection. Il file di entitlements e le descrizioni d'uso sono già presenti.
-3. Compila su un iPhone con iOS 27. HealthKit può non essere disponibile nel simulatore.
-4. Esporta lo ZIP dall'app Even Realities. Aprilo tramite **Seleziona archivio ZIP** nell'app oppure usa **Apri in Even Health Bridge** da Files o dal menu Condividi, se mostrato dal sistema. Controlla l'anteprima e scegli **Importa il sonno in Apple Salute**. La richiesta di autorizzazione compare solo a quel punto.
+1. Open `EvenHealthBridge.xcodeproj` in Xcode 27.
+2. Select a signing team for the `EvenHealthBridge` target and enable the HealthKit and Data Protection capabilities. The entitlements file and usage descriptions are already present.
+3. Build to an iPhone running iOS 27. HealthKit may be unavailable in Simulator.
+4. Export a ZIP archive from the Even Realities app. Open it from **Select ZIP archive** in the app, or use **Open in Even Health Bridge** from Files or the Share sheet when iOS displays it. Review the preview and choose **Import sleep into Apple Health**. The authorization prompt is shown only at that point.
 
-L'app registra il tipo ZIP come documento apribile e legge gli URL con security scope e file coordination, anche per i provider Files. Non conserva una copia dell'archivio. Le sessioni e gli identificativi dei campioni salvati restano in SwiftData sul dispositivo, con CloudKit disabilitato esplicitamente e protezione dati iOS completa. Nessun server, account o analytics.
+The app registers the ZIP type as an openable document and reads URLs with security-scoped access and file coordination, including URLs from Files providers. It does not retain an archive copy. Import sessions and saved sample identifiers stay in on-device SwiftData, with CloudKit explicitly disabled and iOS Complete data protection. There is no server, account, or analytics.
 
-Se lo store locale SwiftData non si apre, l'app mostra un errore e permette di riprovare. Non crea uno store temporaneo vuoto: senza gli identificativi precedenti non potrebbe prevenire con sicurezza le scritture duplicate in Salute.
+If the local SwiftData store cannot be opened, the app displays an error and lets the user retry. It never creates an empty temporary store: without existing identifiers it could not safely prevent duplicate Health writes.
 
-Il riepilogo iniziale mostra lo stato della scrittura del sonno in Apple Salute, le categorie importate, il numero e il periodo delle fasi registrate, l'ultima sincronizzazione e l'ultima analisi. Il pulsante per aprire un archivio ZIP è in cima alla schermata, raggiungibile anche con testo molto grande; lo stato dei permessi si aggiorna al ritorno nell'app e al termine dell'importazione.
+The dashboard shows the Apple Health sleep-write status, imported categories, saved-stage count and date range, the latest sync, and the latest analysis. The ZIP button is at the top of the screen and remains reachable with very large text. Permission status refreshes when the app becomes active and after an import finishes.
 
-## Dati e limiti
+## Data and limitations
 
-Il parser legge tutti e sette i CSV; i dettagli dello schema sono in [Docs/DatasetAnalysis.md](Docs/DatasetAnalysis.md). Per il sonno convalida che le durate delle fasi corrispondano agli aggregati e all'intervallo della sessione. Codici: 0 veglia, 1 REM, 2 leggero/Core, 3 profondo. Le sessioni sovrapposte sono escluse; solo le fasi validate e senza conflitti sono idonee alla scrittura.
+The parser reads all seven CSV files; schema details are in [Docs/DatasetAnalysis.md](Docs/DatasetAnalysis.md). For sleep it verifies that stage durations agree with session aggregates and the session interval. Stage codes are: 0 awake, 1 REM, 2 core/light, and 3 deep. Overlapping sessions are excluded; only validated, conflict-free stages are eligible for writing.
 
-Le sessioni di sonno oltre 24 ore sono scartate come non plausibili. Se due righe della stessa sorgente descrivono fasi diverse per la stessa sessione, l'intera sessione è classificata come conflitto; copie identiche vengono deduplicate. Il lettore ZIP rifiuta archivi oltre 50 MB e limita la dimensione dei CSV decompressi prima di analizzarli.
+Sleep sessions longer than 24 hours are rejected as implausible. If two rows from the same source describe different stages for the same session, the whole session is classified as a conflict; identical copies are deduplicated. The ZIP reader rejects archives larger than 50 MB and limits decompressed CSV size before analysis.
 
-I CSV sono decompressi e analizzati un file e una riga alla volta, senza conservare tutte le righe come dizionari o tutti i CSV decompressi insieme. Le righe con virgolette CSV malformate vengono scartate e segnalate senza alterare quelle valide. L'analisi si interrompe con un errore se l'archivio supera 100.000 misurazioni normalizzate, per evitare che l'anteprima esaurisca la memoria dell'iPhone. Se un archivio contiene molti record malformati, l'anteprima mostra i primi 100 avvisi e il numero di quelli omessi.
+CSV files are decompressed and parsed one file and one row at a time. The app does not retain all rows as dictionaries or all decompressed CSV files at once. Rows with malformed CSV quoting are skipped and reported without changing valid rows. Analysis stops with an error above 100,000 normalized measurements, preventing the preview from exhausting iPhone memory. For archives with many malformed records, the preview shows the first 100 warnings and the number omitted.
 
-L'anteprima espone per ciascuna categoria misurazioni analizzate, validate, nuove, già importate, duplicate nello ZIP, escluse, conflitti, sorgenti e periodo UTC. Per il sonno ogni fase è una misurazione, quindi il conteggio differisce dal numero di righe `sleep.csv`. Le fasi nuove sono elencate con tipo, orario, durata e sorgente prima del consenso alla scrittura. Nelle Impostazioni puoi scegliere se visualizzare gli orari in UTC o nel fuso dell'iPhone; in entrambi i casi è mostrato l'offset temporale.
+The preview shows, for each category, analysed, validated, new, previously imported, in-ZIP duplicate, excluded, and conflicting measurements, as well as sources and the UTC range. Each sleep stage is one measurement, so its count differs from the number of `sleep.csv` rows. New sleep stages list their type, time, duration, and source before any write is authorized. In Settings, users can choose UTC or iPhone-local times; the offset is always displayed.
 
-Passi, calorie, frequenza cardiaca, HRV, SpO₂ e temperatura sono visibili nell'anteprima ma esclusi dalla scrittura: l'export non fornisce ancora le unità e/o gli intervalli o il significato statistico necessari per un mapping sicuro. In particolare HRV non specifica SDNN, e min/max/avg non sono tre campioni distinti. Un aggiornamento futuro richiederà documentazione attendibile e test dedicati.
+Steps, calories, heart rate, HRV, SpO₂, and temperature appear in the preview but are excluded from writing. The current export does not yet provide the units, intervals, or statistical meaning required for a safe mapping. In particular, Even does not specify whether HRV is SDNN, and min/max/avg are not three independent samples. Enabling another category in the future requires reliable documentation and dedicated testing.
 
-La deduplicazione usa ID stabili tra sorgenti e importazioni; confronta anche le componenti `resting` e `active` delle calorie e segnala come conflitto tutte le righe con lo stesso ID ma contenuto discordante. HealthKit riceve anche sync identifier/version. Il piano confronta le sessioni con i campioni locali già scritti: una seconda importazione dello stesso archivio produce zero nuovi campioni; una sessione che si sovrappone a una precedente viene esclusa. Prima di ogni nuova scrittura, l'app cerca l'ID tra i campioni di sonno creati da sé in HealthKit. Se un'interruzione è avvenuta dopo il salvataggio in Salute ma prima della registrazione locale, recupera l'ID senza riscrivere il campione. Se la verifica non riesce o trova dati discordanti, interrompe l'importazione. L'app non legge, elimina o modifica campioni di altre app.
+## Apple Watch study
 
-La richiesta di autorizzazione al momento dell'importazione comprende lettura e scrittura del solo tipo sonno. La query usa [la sorgente dell'app](https://developer.apple.com/documentation/healthkit/hksource/default%28%29) per limitarsi ai campioni creati da Even Health Bridge; [Apple documenta](https://developer.apple.com/documentation/healthkit/authorizing-access-to-health-data) che questi restano visibili all'app anche quando l'accesso in lettura ai dati di altre sorgenti è negato. Ogni campione porta [identificativo e versione di sincronizzazione](https://developer.apple.com/documentation/healthkit/hkmetadatakeysyncidentifier).
+After analysing a ZIP archive, open the **Study** tab and select the comparison start and end dates. **Compare with Apple Watch** requests read-only HealthKit access to steps, active energy, heart rate, HRV, and oxygen saturation at that time. It never requests write access, changes Apple Watch samples, or persists the values it reads; the report exists only in memory while the screen is open.
 
-I log diagnostici contengono solo conteggi ed eventi, senza valori biometrici. Le colonne `resting` e `active` delle calorie vengono conservate nell'analisi in memoria, ma non ricevono un mapping HealthKit senza verifica dell'intervallo.
+The report filters HealthKit records whose source name contains “Watch”, measures how many Apple Watch readings occur near Even records, and reports the median absolute difference for heart rate, HRV, and SpO₂. It compares only Even `avg` records for those metrics; `min` and `max` are not samples. For steps and active energy it reports temporal coverage only, because the Even interval duration is not documented. A comparison, even a strong correlation, is research evidence rather than proof that a new category can be imported automatically. HRV remains excluded until Even confirms that its metric is SDNN.
 
-## Verifiche
+## Duplicate prevention and HealthKit safety
+
+Deduplication uses stable identifiers across sources and imports. It also compares the `resting` and `active` calorie components and classifies matching IDs with conflicting content as conflicts. HealthKit samples include a sync identifier and sync version. The planner compares sessions with locally saved samples: importing the same archive again creates zero new samples, while a session overlapping a prior session is excluded. Before each write, the app searches only for matching sleep samples that it created itself in HealthKit. If an interruption happens after a Health save but before local persistence, it recovers the identifier without writing a duplicate. If verification fails or finds conflicting data, the import stops. The app never reads, deletes, or changes samples from other apps.
+
+At import time, the authorization request includes read and write access only for sleep. The query uses [the app’s HealthKit source](https://developer.apple.com/documentation/healthkit/hksource/default%28%29) so it is limited to samples created by Even Health Bridge; [Apple documents](https://developer.apple.com/documentation/healthkit/authorizing-access-to-health-data) that an app can still see its own samples when read access to other sources is denied. Each sample has a [sync identifier and version](https://developer.apple.com/documentation/healthkit/hkmetadatakeysyncidentifier).
+
+Diagnostic logs include only counts and events, never biometric values. The `resting` and `active` calorie columns are kept in the in-memory analysis, but receive no HealthKit mapping until their interval is verified.
+
+## Verification
 
 ```sh
 swift test
@@ -41,32 +49,32 @@ xcodebuild -project EvenHealthBridge.xcodeproj -scheme EvenHealthBridge -sdk iph
 xcodebuild -project EvenHealthBridge.xcodeproj -scheme EvenHealthBridge -destination 'platform=iOS Simulator,name=iPhone 18 Pro' CODE_SIGNING_ALLOWED=NO test -only-testing:EvenHealthBridgeAppTests
 ```
 
-Un test facoltativo esamina l'archivio reale solo sul computer locale, senza distribuirlo:
+An optional test can inspect a real archive only on the local computer, without distributing it:
 
 ```sh
-EVEN_HEALTH_LOCAL_ARCHIVE=/percorso/privato/Even_health_data_20261108.zip swift test --filter optionalLocalRealArchive
+EVEN_HEALTH_LOCAL_ARCHIVE=/private/path/Even_health_data_20261108.zip swift test --filter optionalLocalRealArchive
 ```
 
-Il dataset reale è escluso da Git tramite `.gitignore`; per i test condivisi usare solo fixture sintetiche.
+The real dataset is excluded from Git through `.gitignore`; shared tests use synthetic fixtures only.
 
-La build e il lancio sono stati verificati su un simulatore iOS 27. L'11 novembre 2026, con Xcode 27.2, la build firmata è stata installata e avviata su un iPhone 18 Pro con iOS 27.3. Il progetto configura il percorso di ricerca dei framework incorporati anche sul dispositivo fisico. I 7 test `EvenHealthBridgeAppTests` sono passati sull'iPhone; i 37 test Swift del core sono passati sul Mac, incluso il test facoltativo dell'archivio reale locale. Sul dispositivo sono state osservate la dashboard, la cronologia inizialmente vuota e l'apertura del selettore Files. Il test d'integrazione iOS ha analizzato `SyntheticSleep.zip` tramite il coordinatore, senza scrivere in Salute.
+The build and launch were verified in an iOS 27 Simulator. On 11 November 2026, with Xcode 27.2, a signed build was installed and launched on an iPhone 18 Pro running iOS 27.3. The project configures the embedded-framework search path for a physical device. Seven `EvenHealthBridgeAppTests` passed on the iPhone; 37 Swift core tests passed on the Mac, including the optional local real-archive test. On the device, the dashboard, initially empty history, and Files picker were observed. The iOS integration test analysed `SyntheticSleep.zip` through the coordinator without writing to Health.
 
-Sul dispositivo fisico `SyntheticSleep.zip` è stato copiato nel contenitore corrente dell'app e aperto con un URL passato da `devicectl`: l'anteprima ha mostrato 1 fase di sonno nuova e 6 avvisi per i CSV assenti. La scelta «Registra solo l'analisi» ha creato una voce in Cronologia con 2 record, 1 duplicato e 0 campioni scritti.
+On the physical device, `SyntheticSleep.zip` was copied into the app’s current container and opened from a URL delivered with `devicectl`. The preview showed one new sleep stage and six warnings for missing CSV files. Choosing **Record analysis only** created a History item with two records, one duplicate, and zero written samples.
 
-L'11 novembre 2026 è stata inoltre completata una scrittura HealthKit reale su iPhone: il consenso ha abilitato lettura e scrittura del sonno con accesso in lettura limitato agli ultimi 30 giorni e ai dati futuri. L'app ha salvato una sola fase sintetica di sonno leggero, della durata di un minuto, e la Cronologia ha registrato «1 campioni, 1 nuovi in questo tentativo». Il campione è rimasto in Apple Salute come concordato. Aprendo di nuovo lo stesso ZIP sul dispositivo, l'anteprima ha mostrato 1 fase già importata, 0 nuove e 0 conflitti; il pulsante di importazione era disabilitato, senza una seconda scrittura. La selezione manuale dello ZIP nel selettore Files e il menu Condividi su iPhone fisico restano da verificare separatamente.
+On 11 November 2026, one real HealthKit write was completed on the iPhone: consent enabled read and write access for sleep, with reading limited to the latest 30 days and future data. The app saved one synthetic core-sleep stage lasting one minute, and History recorded “1 samples, 1 new in this attempt”. The sample remains in Apple Health as agreed. Reopening the same ZIP showed one previously imported stage, zero new stages, and zero conflicts; the import button was disabled, so a second write could not occur. Manual ZIP selection in Files and the Share sheet on the physical iPhone still require separate verification.
 
-L'anteprima sintetica è stata controllata nel simulatore in Dark Mode con testo alla dimensione `accessibility-large`: titoli, conteggi, avvisi e pulsanti restano leggibili e raggiungibili scorrendo. L'aspetto e la dimensione del testo del simulatore sono stati poi ripristinati.
+The synthetic preview was checked in Simulator Dark Mode with `accessibility-large` text: headings, counts, warnings, and controls remained legible and reachable by scrolling. The Simulator appearance and text size were then restored.
 
-I test iOS usano store SwiftData temporanei: verificano che un ID di fase sopravviva alla riapertura, che due analisi dello stesso ZIP producano due voci distinte e che la cronologia del primo schema resti leggibile dopo l'aggiunta del nuovo modello. Un test aggiuntivo passa uno ZIP sintetico al coordinatore iOS e verifica l'analisi ripetuta. Non eseguono una scrittura HealthKit reale.
+iOS tests use temporary SwiftData stores. They verify that a stage ID survives reopening, that analysing the same ZIP twice creates two distinct attempt records, and that history from the first schema remains readable after adding the newer model. An additional test delivers a synthetic ZIP to the iOS coordinator and verifies repeated analysis. They do not perform a real HealthKit write.
 
-Nel simulatore iOS 27 è stato aperto `SyntheticSleep.zip` dal selettore Files dell'app: l'anteprima ha mostrato 1 fase nuova, 0 già importate e 6 avvisi per i CSV assenti nella fixture. La registrazione della sola analisi è comparsa in Cronologia con 2 record, 1 duplicato e 0 campioni scritti. Lo stesso ZIP è stato poi aperto tramite il menu Condividi di Files: Even Health Bridge compariva tra le destinazioni e ha mostrato nuovamente l'anteprima con 1 fase nuova, senza scrivere in Salute. Il test iOS copre inoltre l'analisi ripetuta dello ZIP dopo la consegna del suo URL al coordinatore.
+In the iOS 27 Simulator, `SyntheticSleep.zip` was opened from the app’s Files picker. The preview showed one new stage, zero imported stages, and six warnings for missing CSV files. Recording the analysis appeared in History with two records, one duplicate, and zero Health writes. The same ZIP was then opened through the Files Share sheet: Even Health Bridge appeared as a destination and showed the same preview without writing to Health. The iOS test suite also covers repeated ZIP analysis after the coordinator receives its URL.
 
-Nell'app puoi annullare l'analisi di uno ZIP in corso. Dalle impostazioni puoi cancellare la cronologia delle analisi; gli ID dei campioni HealthKit restano conservati localmente per evitare nuove scritture duplicate.
+You can cancel an in-progress ZIP analysis. In Settings, you can clear analysis history; saved HealthKit sample identifiers remain on-device to prevent future duplicate writes.
 
-La schermata **Diagnostica** nelle Impostazioni mostra versione dell'app, versioni di parser e mapping, conteggi locali e stato dell'ultimo tentativo. Non espone valori biometrici e non invia dati.
+The **Diagnostics** screen in Settings shows app version, parser and mapping versions, local counts, and the latest attempt status. It never displays biometric values or sends data.
 
-Ogni nuova analisi registrata e ogni nuovo tentativo di scrittura creano una voce di cronologia, anche se lo ZIP ha lo stesso hash di uno precedente. Quando avvii una scrittura, l'app salva prima una voce con esito da verificare: se si arresta improvvisamente, la voce rimane visibile. Le vecchie voci del primo schema compaiono nella sezione **Cronologia precedente**.
+Each recorded analysis and each Health write attempt creates a History entry, including a ZIP whose hash matches an earlier one. Before a write begins, the app saves an attempt with a status awaiting verification; if the app stops unexpectedly, the entry remains visible. Records from the first schema appear in **Previous history**.
 
-Per un tentativo interrotto, la cronologia distingue cancellazione, permesso negato, indisponibilità di Salute, conflitto e altri errori con messaggi predefiniti, senza registrare dettagli biometrici. Il conteggio indica le fasi confermate nell'archivio locale: eventuali scritture in Salute avvenute immediatamente prima dell'interruzione vengono riconciliate al tentativo successivo.
+For an interrupted attempt, History distinguishes cancellation, denied permission, unavailable Health, conflicts, and other errors using predefined messages without biometric details. The count reflects stages confirmed in local storage; Health saves made immediately before an interruption are reconciled at the next attempt.
 
-Se apri un altro ZIP durante l'analisi, l'app attende la cancellazione dell'analisi precedente prima di iniziare la nuova. Durante la scrittura in Salute, un nuovo archivio viene rifiutato per mantenere coerente la cronologia dell'importazione. Nel riepilogo, i campioni già importati sono distinti dai dati esclusi per ambiguità o conflitto.
+If another ZIP is opened during analysis, the app waits for the earlier analysis to cancel before beginning the new one. While Health is being written, a new archive is rejected to keep import history consistent. In the summary, previously imported samples are distinct from data excluded due to ambiguity or conflict.

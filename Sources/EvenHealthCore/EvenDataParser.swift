@@ -15,7 +15,7 @@ public enum EvenParserError: LocalizedError, Equatable {
     public var errorDescription: String? {
         switch self {
         case .tooManyMeasurements(let limit):
-            "L'archivio contiene più di \(limit) misurazioni. Importazione interrotta per proteggere la memoria del dispositivo."
+            String(localized: "L'archivio contiene più di \(limit) misurazioni. Importazione interrotta per proteggere la memoria del dispositivo.")
         }
     }
 }
@@ -92,14 +92,14 @@ public struct EvenDataParser: Sendable {
             guard let kind = kindsByFilename[filename] else { return }
             do {
                 try csv.forEachRowRecovering(data, onRejected: { number in
-                    addWarning("\(filename): record CSV \(number) scartato")
+                    addWarning(String(localized: "\(filename): record CSV \(number) scartato"))
                 }) { recordNumber, row in
                     if recordNumber.isMultiple(of: 256) { try Task.checkCancellation() }
                     if kind == .sleep {
                         let stages: [HealthMeasurement]
                         do { stages = try parseSleep(row) }
                         catch {
-                            addWarning("sleep.csv: sessione non valida nel record \(recordNumber)")
+                            addWarning(String(localized: "sleep.csv: sessione non valida nel record \(recordNumber)"))
                             return
                         }
                         guard stages.count <= maxMeasurements - measurements.count else {
@@ -109,7 +109,7 @@ public struct EvenDataParser: Sendable {
                         return
                     }
                     guard let time = row["timestamp"], let date = Self.parseDate(time) else {
-                        addWarning("\(filename): record \(recordNumber) con timestamp non valido")
+                        addWarning(String(localized: "\(filename): record \(recordNumber) con timestamp non valido"))
                         return
                     }
                     let source = row["source"] ?? "unknown"
@@ -137,13 +137,13 @@ public struct EvenDataParser: Sendable {
                     measurements.append(.init(id: id, kind: kind, timestamp: date, originalTimestamp: time, source: source, value: value, components: components, originalUnit: nil, canonicalUnit: nil, statistic: statistic, intervalEnd: end, sleepStage: nil, sessionEnd: nil, provenance: filename, validation: validation))
                 }
             } catch is CSVError {
-                addWarning("\(filename): intestazione o codifica CSV non valida")
+                addWarning(String(localized: "\(filename): intestazione o codifica CSV non valida"))
             }
         }
         for (filename, _) in fileKinds where !seen.contains(filename) {
-            addWarning("File mancante: \(filename)")
+            addWarning(String(localized: "File mancante: \(filename)"))
         }
-        if omittedWarnings > 0 { warnings.append("Altri \(omittedWarnings) avvisi omessi; controlla la qualità dell'archivio.") }
+        if omittedWarnings > 0 { warnings.append(String(localized: "Altri \(omittedWarnings) avvisi omessi; controlla la qualità dell'archivio.")) }
         return .init(measurements: MeasurementDeduplicator().resolve(measurements), warnings: warnings, archiveHash: try hashFile(url))
     }
 

@@ -1,0 +1,2 @@
+"NSHealthUpdateUsageDescription" = "Saves only the Even sleep stages that you choose to import into Apple Health.";
+"NSHealthShareUsageDescription" = "Checks sleep samples created by Even Health Bridge to prevent duplicates and compares Even data with Apple Watch locally during a study that you start.";

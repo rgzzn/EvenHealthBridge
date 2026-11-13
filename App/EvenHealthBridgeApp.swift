@@ -98,12 +98,12 @@ final class StoredSample {
 
     static func sleepWriteStatus() -> String {
         guard HKHealthStore.isHealthDataAvailable(),
-              let type = HKObjectType.categoryType(forIdentifier: .sleepAnalysis) else { return "Non disponibile" }
+              let type = HKObjectType.categoryType(forIdentifier: .sleepAnalysis) else { return String(localized: "Non disponibile") }
         switch HKHealthStore().authorizationStatus(for: type) {
-        case .sharingAuthorized: return "Scrittura consentita"
-        case .sharingDenied: return "Scrittura negata"
-        case .notDetermined: return "Non ancora richiesta"
-        @unknown default: return "Stato sconosciuto"
+        case .sharingAuthorized: return String(localized: "Scrittura consentita")
+        case .sharingDenied: return String(localized: "Scrittura negata")
+        case .notDetermined: return String(localized: "Non ancora richiesta")
+        @unknown default: return String(localized: "Stato sconosciuto")
         }
     }
 
@@ -175,11 +175,11 @@ enum ImportFailure: LocalizedError {
     case healthUnavailable, permissionDenied, invalidSample, unreadableArchive, conflictingSavedSample
     var errorDescription: String? {
         switch self {
-        case .healthUnavailable: "Apple Salute non è disponibile su questo dispositivo."
-        case .permissionDenied: "Autorizzazione alla scrittura del sonno non concessa."
-        case .invalidSample: "Campione di sonno non valido."
-        case .unreadableArchive: "Impossibile leggere il file selezionato."
-        case .conflictingSavedSample: "In Apple Salute esiste già un campione con lo stesso identificativo ma dati diversi. Importazione interrotta."
+        case .healthUnavailable: String(localized: "Apple Salute non è disponibile su questo dispositivo.")
+        case .permissionDenied: String(localized: "Autorizzazione alla scrittura del sonno non concessa.")
+        case .invalidSample: String(localized: "Campione di sonno non valido.")
+        case .unreadableArchive: String(localized: "Impossibile leggere il file selezionato.")
+        case .conflictingSavedSample: String(localized: "In Apple Salute esiste già un campione con lo stesso identificativo ma dati diversi. Importazione interrotta.")
         }
     }
 }
@@ -199,12 +199,12 @@ enum ImportInterruptionReason {
 
     var title: String {
         switch self {
-        case .cancelled: "Annullata"
-        case .permissionDenied: "Permesso Salute negato"
-        case .healthUnavailable: "Apple Salute non disponibile"
-        case .conflictingSample: "Conflitto in Apple Salute"
-        case .invalidSample: "Campione di sonno non valido"
-        case .other: "Errore di sincronizzazione"
+        case .cancelled: String(localized: "Annullata")
+        case .permissionDenied: String(localized: "Permesso Salute negato")
+        case .healthUnavailable: String(localized: "Apple Salute non disponibile")
+        case .conflictingSample: String(localized: "Conflitto in Apple Salute")
+        case .invalidSample: String(localized: "Campione di sonno non valido")
+        case .other: String(localized: "Errore di sincronizzazione")
         }
     }
 }
@@ -222,7 +222,7 @@ final class ImportCoordinator {
     func analyze(_ url: URL) async {
         guard !Task.isCancelled else { return }
         guard !isWorking else {
-            error = "Attendi la fine dell'importazione prima di aprire un altro archivio."
+            error = String(localized: "Attendi la fine dell'importazione prima di aprire un altro archivio.")
             return
         }
         isWorking = true
@@ -259,7 +259,7 @@ final class ImportCoordinator {
             dataset = nil
         } catch {
             dataset = nil
-            self.error = "Impossibile analizzare l'archivio: \(error.localizedDescription)"
+            self.error = String(localized: "Impossibile analizzare l'archivio: \(error.localizedDescription)")
             DiagnosticLoggingService.logger.error("Archive analysis failed")
         }
     }
@@ -279,7 +279,7 @@ final class ImportCoordinator {
             try saveAnalysis(in: context)
             DiagnosticLoggingService.logger.info("Sleep import completed; written: \(self.writtenCount ?? 0, privacy: .public)")
         } catch is CancellationError {
-            self.error = "Importazione interrotta. Puoi riprendere quando vuoi."
+            self.error = String(localized: "Importazione interrotta. Puoi riprendere quando vuoi.")
             try? recordInterruptedImport(in: context, reason: .cancelled)
             DiagnosticLoggingService.logger.info("Sleep import cancelled")
         } catch {
@@ -293,7 +293,7 @@ final class ImportCoordinator {
         guard let dataset else { return }
         if persisted { activeAttemptID = UUID() }
         let attempt = try currentAttempt(in: context, dataset: dataset)
-        attempt.status = "Importazione avviata; esito da verificare"
+        attempt.status = String(localized: "Importazione avviata; esito da verificare")
         attempt.excluded = try excludedCount(in: context)
         try context.save()
         persisted = true
@@ -306,7 +306,7 @@ final class ImportCoordinator {
         let session = try currentAttempt(in: context, dataset: dataset)
         session.writtenSamples = saved
         session.excluded = try excludedCount(in: context)
-        session.status = "\(reason.title): \(saved) fasi registrate localmente; verifica al prossimo tentativo."
+        session.status = String(localized: "\(reason.title): \(saved) fasi registrate localmente; verifica al prossimo tentativo.")
         try context.save()
     }
 
@@ -318,7 +318,7 @@ final class ImportCoordinator {
             let saved = try context.fetch(FetchDescriptor<StoredSample>()).filter { ids.contains($0.stableID) }.count
             session.writtenSamples = saved
             session.lastSyncedAt = .now
-            session.status = "Sonno sincronizzato: \(saved) campioni, \(writtenCount) nuovi in questo tentativo"
+            session.status = String(localized: "Sonno sincronizzato: \(saved) campioni, \(writtenCount) nuovi in questo tentativo")
         }
         session.excluded = try excludedCount(in: context)
         try context.save()
@@ -334,7 +334,7 @@ final class ImportCoordinator {
             attemptID: id, archiveHash: dataset.archiveHash, importedAt: .now,
             records: dataset.measurements.count,
             duplicates: dataset.measurements.filter { $0.validation == .duplicate }.count,
-            excluded: 0, status: "Analizzato; nessun campione scritto"
+            excluded: 0, status: String(localized: "Analizzato; nessun campione scritto")
         )
         context.insert(attempt)
         return attempt
@@ -403,15 +403,20 @@ struct RootView: View {
             .tabItem { Label("Importa", systemImage: "square.and.arrow.down") }
             .tag(0)
             NavigationStack {
+                AppleWatchStudyView(coordinator: coordinator, analysisTask: $analysisTask)
+            }
+            .tabItem { Label("Studio", systemImage: "applewatch") }
+            .tag(1)
+            NavigationStack {
                 ImportHistoryView()
             }
             .tabItem { Label("Cronologia", systemImage: "clock") }
-            .tag(1)
+            .tag(2)
             NavigationStack {
                 SettingsView()
             }
             .tabItem { Label("Impostazioni", systemImage: "gear") }
-            .tag(2)
+            .tag(3)
         }
         .onOpenURL { url in
             guard url.isFileURL, url.pathExtension.lowercased() == "zip" else { return }

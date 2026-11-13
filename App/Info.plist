@@ -12,7 +12,7 @@
     <key>CFBundleShortVersionString</key><string>$(MARKETING_VERSION)</string>
     <key>CFBundleVersion</key><string>$(CURRENT_PROJECT_VERSION)</string>
     <key>NSHealthUpdateUsageDescription</key><string>Salva in Apple Salute solo le fasi del sonno Even che hai scelto di importare.</string>
-    <key>NSHealthShareUsageDescription</key><string>Verifica i campioni di sonno già creati da Even Health Bridge per riprendere le importazioni senza duplicati.</string>
+    <key>NSHealthShareUsageDescription</key><string>Verifica i campioni di sonno creati da Even Health Bridge per evitare duplicati e confronta localmente i dati Even con Apple Watch durante uno studio che hai avviato.</string>
     <key>LSSupportsOpeningDocumentsInPlace</key><true/>
     <key>CFBundleDocumentTypes</key>
     <array>

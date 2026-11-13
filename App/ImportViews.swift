@@ -69,7 +69,7 @@ struct DashboardView: View {
     @Query(sort: \StoredImportAttempt.importedAt, order: .reverse) private var attempts: [StoredImportAttempt]
     @Query(sort: \StoredImportSession.importedAt, order: .reverse) private var legacySessions: [StoredImportSession]
     @Query private var savedSamples: [StoredSample]
-    @State private var healthStatus = "Non verificato"
+    @State private var healthStatus = String(localized: "Non verificato")
 
     private var latest: (any ImportHistoryRecord)? {
         let attempt = attempts.first
@@ -84,8 +84,8 @@ struct DashboardView: View {
     }
 
     private var importedCategories: String {
-        let names = Set(savedSamples.map(\.category)).sorted().map { $0 == "sleep" ? "Sonno" : $0 }
-        return names.isEmpty ? "Nessuna" : names.joined(separator: ", ")
+        let names = Set(savedSamples.map(\.category)).sorted().map { $0 == "sleep" ? String(localized: "Sonno") : $0 }
+        return names.isEmpty ? String(localized: "Nessuna") : names.joined(separator: ", ")
     }
 
     var body: some View {
@@ -106,7 +106,7 @@ struct DashboardView: View {
             if let lastSync {
                 LabeledContent("Ultima sincronizzazione", value: lastSync.formatted(date: .abbreviated, time: .shortened))
             } else {
-                LabeledContent("Ultima sincronizzazione", value: "Mai")
+                LabeledContent("Ultima sincronizzazione", value: String(localized: "Mai"))
             }
             if let latest {
                 LabeledContent("Ultima analisi", value: latest.importedAt.formatted(date: .abbreviated, time: .shortened))
@@ -220,13 +220,13 @@ private struct CategorySummaryRow: View {
 
     private var title: String {
         switch summary.kind {
-        case .steps: "Passi"
-        case .calories: "Calorie"
-        case .heartRate: "Frequenza cardiaca"
-        case .hrv: "Variabilità cardiaca"
-        case .oxygen: "Ossigenazione"
-        case .sleep: "Sonno"
-        case .skinTemperature: "Temperatura"
+        case .steps: String(localized: "Passi")
+        case .calories: String(localized: "Calorie")
+        case .heartRate: String(localized: "Frequenza cardiaca")
+        case .hrv: String(localized: "Variabilità cardiaca")
+        case .oxygen: String(localized: "Ossigenazione")
+        case .sleep: String(localized: "Sonno")
+        case .skinTemperature: String(localized: "Temperatura")
         }
     }
 
@@ -268,11 +268,11 @@ private struct SleepStagePreviewRow: View {
 
     private var stageName: String {
         switch sample.sleepStage {
-        case 0: "Veglia"
-        case 1: "REM"
-        case 2: "Sonno leggero"
-        case 3: "Sonno profondo"
-        default: "Fase sconosciuta"
+        case 0: String(localized: "Veglia")
+        case 1: String(localized: "REM")
+        case 2: String(localized: "Sonno leggero")
+        case 3: String(localized: "Sonno profondo")
+        default: String(localized: "Fase sconosciuta")
         }
     }
 
