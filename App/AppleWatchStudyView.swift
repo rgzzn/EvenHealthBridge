@@ -29,6 +29,7 @@ struct HealthKitReferenceReader {
             output += samples.compactMap { sample in
                 guard matchesReferenceSource(sample), let value = value(of: sample, metric: metric) else { return nil }
                 return AppleWatchReferenceSample(
+                    id: sample.uuid.uuidString,
                     metric: metric,
                     timestamp: sample.startDate,
                     intervalEnd: sample.endDate,
