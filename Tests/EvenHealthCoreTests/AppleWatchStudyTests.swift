@@ -25,6 +25,26 @@ import Testing
     #expect(futureWearable.matches(.init(productType: "watch7,20", sourceName: "Future Wearable")) == false)
 }
 
+@Test func referenceSampleRetainsOnlyAValidSourceInterval() {
+    let start = Date(timeIntervalSince1970: 1_700_600_000)
+    let timed = SourceCoverageReferenceSample(
+        metric: .steps,
+        timestamp: start,
+        intervalEnd: start.addingTimeInterval(15 * 60),
+        value: 20
+    )
+    let instantaneous = SourceCoverageReferenceSample(
+        metric: .heartRate,
+        timestamp: start,
+        intervalEnd: start,
+        value: 70
+    )
+
+    #expect(timed.interval?.start == start)
+    #expect(timed.interval?.end == start.addingTimeInterval(15 * 60))
+    #expect(instantaneous.interval == nil)
+}
+
 @Test func studyUsesOnlyAverageHeartRateAndPairsEachWatchSampleOnce() {
     let origin = Date(timeIntervalSince1970: 1_700_000_000)
     let average = measurement(kind: .heartRate, timestamp: origin, value: 70, statistic: "avg")

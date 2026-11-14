@@ -28,7 +28,12 @@ struct HealthKitReferenceReader {
             let samples = try await descriptor.result(for: store)
             output += samples.compactMap { sample in
                 guard matchesReferenceSource(sample), let value = value(of: sample, metric: metric) else { return nil }
-                return AppleWatchReferenceSample(metric: metric, timestamp: sample.startDate, value: value)
+                return AppleWatchReferenceSample(
+                    metric: metric,
+                    timestamp: sample.startDate,
+                    intervalEnd: sample.endDate,
+                    value: value
+                )
             }
         }
         return output

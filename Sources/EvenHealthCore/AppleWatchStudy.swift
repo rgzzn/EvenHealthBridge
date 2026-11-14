@@ -137,13 +137,28 @@ public struct SourceCoverageReferenceSample: Sendable, Hashable {
     public let id: String
     public let metric: SourceCoverageMetric
     public let timestamp: Date
+    /// End of the source sample, when the source reports a duration. Instantaneous samples use `nil`.
+    public let intervalEnd: Date?
     public let value: Double
 
-    public init(id: String? = nil, metric: SourceCoverageMetric, timestamp: Date, value: Double) {
+    public init(
+        id: String? = nil,
+        metric: SourceCoverageMetric,
+        timestamp: Date,
+        intervalEnd: Date? = nil,
+        value: Double
+    ) {
         self.id = id ?? "\(metric.rawValue)-\(timestamp.timeIntervalSinceReferenceDate)-\(value)"
         self.metric = metric
         self.timestamp = timestamp
+        self.intervalEnd = intervalEnd
         self.value = value
+    }
+
+    /// A valid half-open interval when the source supplied one; otherwise this is an instantaneous sample.
+    public var interval: DateInterval? {
+        guard let intervalEnd, intervalEnd > timestamp else { return nil }
+        return DateInterval(start: timestamp, end: intervalEnd)
     }
 }
 
