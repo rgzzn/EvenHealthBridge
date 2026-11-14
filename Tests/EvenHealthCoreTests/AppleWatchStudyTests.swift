@@ -12,6 +12,19 @@ import Testing
     #expect(AppleWatchSourceClassifier.isAppleWatch(productType: nil, sourceName: "Watch export") == false)
 }
 
+@Test func referenceSourceDefinitionsCanUseTheirOwnProductTypeAndHistoricalMarker() {
+    let futureWearable = ReferenceSourceDefinition(
+        id: "future-wearable",
+        displayName: "Future wearable",
+        productTypePrefix: "future",
+        historicalSourceNameMarker: "future wearable"
+    )
+
+    #expect(futureWearable.matches(.init(productType: "future1,1", sourceName: "Other source")) == true)
+    #expect(futureWearable.matches(.init(productType: nil, sourceName: "Future Wearable")) == true)
+    #expect(futureWearable.matches(.init(productType: "watch7,20", sourceName: "Future Wearable")) == false)
+}
+
 @Test func studyUsesOnlyAverageHeartRateAndPairsEachWatchSampleOnce() {
     let origin = Date(timeIntervalSince1970: 1_700_000_000)
     let average = measurement(kind: .heartRate, timestamp: origin, value: 70, statistic: "avg")

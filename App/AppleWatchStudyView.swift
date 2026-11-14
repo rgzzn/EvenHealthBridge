@@ -4,8 +4,13 @@ import UniformTypeIdentifiers
 import EvenHealthCore
 
 @MainActor
-struct AppleWatchStudyHealthReader {
+struct HealthKitReferenceReader {
     private let store = HKHealthStore()
+    private let referenceSource: ReferenceSourceDefinition
+
+    init(referenceSource: ReferenceSourceDefinition = .appleWatch) {
+        self.referenceSource = referenceSource
+    }
 
     func requestAndRead(in interval: DateInterval) async throws -> [AppleWatchReferenceSample] {
         guard HKHealthStore.isHealthDataAvailable() else { throw AppleWatchStudyError.healthUnavailable }
@@ -22,7 +27,7 @@ struct AppleWatchStudyHealthReader {
             )
             let samples = try await descriptor.result(for: store)
             output += samples.compactMap { sample in
-                guard isLikelyAppleWatch(sample), let value = value(of: sample, metric: metric) else { return nil }
+                guard matchesReferenceSource(sample), let value = value(of: sample, metric: metric) else { return nil }
                 return AppleWatchReferenceSample(metric: metric, timestamp: sample.startDate, value: value)
             }
         }
@@ -41,11 +46,11 @@ struct AppleWatchStudyHealthReader {
         return HKObjectType.quantityType(forIdentifier: identifier)
     }
 
-    private func isLikelyAppleWatch(_ sample: HKQuantitySample) -> Bool {
-        AppleWatchSourceClassifier.isAppleWatch(
+    private func matchesReferenceSource(_ sample: HKQuantitySample) -> Bool {
+        referenceSource.matches(.init(
             productType: sample.sourceRevision.productType,
             sourceName: sample.sourceRevision.source.name
-        )
+        ))
     }
 
     private func value(of sample: HKQuantitySample, metric: AppleWatchStudyMetric) -> Double? {
@@ -219,7 +224,7 @@ struct AppleWatchStudyView: View {
         report = nil
         defer { isRunning = false }
         do {
-            let references = try await AppleWatchStudyHealthReader().requestAndRead(in: interval)
+            let references = try await HealthKitReferenceReader(referenceSource: .appleWatch).requestAndRead(in: interval)
             guard !Task.isCancelled else { return }
             report = AppleWatchStudyEngine().study(measurements: dataset.measurements, references: references, interval: interval)
         } catch is CancellationError {

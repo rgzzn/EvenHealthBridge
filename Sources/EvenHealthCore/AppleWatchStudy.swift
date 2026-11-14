@@ -1,19 +1,55 @@
 import Foundation
 
-/// Identifies Apple Watch samples without relying on the mutable display name of a HealthKit source.
+/// Stable source metadata extracted by a HealthKit adapter before it reaches the domain layer.
+public struct ReferenceSourceIdentity: Sendable, Hashable {
+    public let productType: String?
+    public let sourceName: String
+
+    public init(productType: String?, sourceName: String) {
+        self.productType = productType
+        self.sourceName = sourceName
+    }
+}
+
+/// A conservative definition of one reference wearable.
 ///
-/// HealthKit writes Apple Watch product types in the `watch<generation>,<model>` form. Older samples
-/// can have no product type, so the narrowly-scoped `Apple Watch` display-name fallback is retained
-/// for those historical records. Generic names containing only `watch` deliberately do not qualify.
-public enum AppleWatchSourceClassifier: Sendable {
-    public static func isAppleWatch(productType: String?, sourceName: String) -> Bool {
-        if let productType {
+/// Product type is preferred because a source name is user-visible, localized, and mutable. The name
+/// marker only supports historical samples for which HealthKit did not save a product type.
+public struct ReferenceSourceDefinition: Sendable, Hashable, Identifiable {
+    public let id: String
+    public let displayName: String
+    public let productTypePrefix: String
+    public let historicalSourceNameMarker: String
+
+    public init(id: String, displayName: String, productTypePrefix: String, historicalSourceNameMarker: String) {
+        self.id = id
+        self.displayName = displayName
+        self.productTypePrefix = productTypePrefix
+        self.historicalSourceNameMarker = historicalSourceNameMarker
+    }
+
+    public func matches(_ identity: ReferenceSourceIdentity) -> Bool {
+        if let productType = identity.productType {
             return productType.trimmingCharacters(in: .whitespacesAndNewlines)
                 .lowercased()
-                .hasPrefix("watch")
+                .hasPrefix(productTypePrefix.lowercased())
         }
 
-        return sourceName.localizedCaseInsensitiveContains("apple watch")
+        return identity.sourceName.localizedCaseInsensitiveContains(historicalSourceNameMarker)
+    }
+
+    public static let appleWatch = Self(
+        id: "apple-watch",
+        displayName: "Apple Watch",
+        productTypePrefix: "watch",
+        historicalSourceNameMarker: "apple watch"
+    )
+}
+
+/// Compatibility facade for the current Apple Watch UI.
+public enum AppleWatchSourceClassifier: Sendable {
+    public static func isAppleWatch(productType: String?, sourceName: String) -> Bool {
+        ReferenceSourceDefinition.appleWatch.matches(.init(productType: productType, sourceName: sourceName))
     }
 }
 
