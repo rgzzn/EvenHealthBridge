@@ -42,7 +42,10 @@ struct AppleWatchStudyHealthReader {
     }
 
     private func isLikelyAppleWatch(_ sample: HKQuantitySample) -> Bool {
-        sample.sourceRevision.source.name.localizedCaseInsensitiveContains("watch")
+        AppleWatchSourceClassifier.isAppleWatch(
+            productType: sample.sourceRevision.productType,
+            sourceName: sample.sourceRevision.source.name
+        )
     }
 
     private func value(of sample: HKQuantitySample, metric: AppleWatchStudyMetric) -> Double? {

@@ -1,5 +1,22 @@
 import Foundation
 
+/// Identifies Apple Watch samples without relying on the mutable display name of a HealthKit source.
+///
+/// HealthKit writes Apple Watch product types in the `watch<generation>,<model>` form. Older samples
+/// can have no product type, so the narrowly-scoped `Apple Watch` display-name fallback is retained
+/// for those historical records. Generic names containing only `watch` deliberately do not qualify.
+public enum AppleWatchSourceClassifier: Sendable {
+    public static func isAppleWatch(productType: String?, sourceName: String) -> Bool {
+        if let productType {
+            return productType.trimmingCharacters(in: .whitespacesAndNewlines)
+                .lowercased()
+                .hasPrefix("watch")
+        }
+
+        return sourceName.localizedCaseInsensitiveContains("apple watch")
+    }
+}
+
 /// Stable metric keys shared by local coverage studies, regardless of the reference wearable.
 public enum SourceCoverageMetric: String, CaseIterable, Sendable, Identifiable {
     case steps

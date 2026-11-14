@@ -2,6 +2,16 @@ import Foundation
 import Testing
 @testable import EvenHealthCore
 
+@Test func appleWatchSourceClassifierUsesProductTypeBeforeTheSourceDisplayName() {
+    #expect(AppleWatchSourceClassifier.isAppleWatch(productType: "watch7,20", sourceName: "Other wearable") == true)
+    #expect(AppleWatchSourceClassifier.isAppleWatch(productType: "ring1", sourceName: "Apple Watch") == false)
+}
+
+@Test func appleWatchSourceClassifierUsesOnlyANarrowHistoricalFallback() {
+    #expect(AppleWatchSourceClassifier.isAppleWatch(productType: nil, sourceName: "Luca's Apple Watch") == true)
+    #expect(AppleWatchSourceClassifier.isAppleWatch(productType: nil, sourceName: "Watch export") == false)
+}
+
 @Test func studyUsesOnlyAverageHeartRateAndPairsEachWatchSampleOnce() {
     let origin = Date(timeIntervalSince1970: 1_700_000_000)
     let average = measurement(kind: .heartRate, timestamp: origin, value: 70, statistic: "avg")
