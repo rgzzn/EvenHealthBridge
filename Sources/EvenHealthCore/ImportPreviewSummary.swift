@@ -13,6 +13,7 @@ public struct CategoryPreviewSummary: Sendable {
     public let periodEnd: Date?
     public let sources: [String: Int]
     public let reportedUnits: [String]
+    public let reportedStatistics: [String]
     public let recordsWithReportedEnd: Int
 }
 
@@ -36,6 +37,7 @@ public struct ImportPreviewSummary: Sendable {
                 periodEnd: items.map { $0.intervalEnd ?? $0.timestamp }.max(),
                 sources: Dictionary(items.map { ($0.source, 1) }, uniquingKeysWith: +),
                 reportedUnits: Array(Set(items.compactMap(\.originalUnit))).sorted(),
+                reportedStatistics: Array(Set(items.compactMap(\.statistic))).sorted(),
                 recordsWithReportedEnd: items.filter { $0.intervalEnd != nil }.count
             )
         }

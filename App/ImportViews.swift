@@ -251,6 +251,9 @@ private struct CategorySummaryRow: View {
             if !summary.reportedUnits.isEmpty {
                 LabeledContent("Unità riportate", value: summary.reportedUnits.joined(separator: " · "))
             }
+            if !summary.reportedStatistics.isEmpty {
+                LabeledContent("Statistiche riportate", value: summary.reportedStatistics.joined(separator: " · "))
+            }
             if summary.recordsWithReportedEnd > 0 {
                 LabeledContent("Record con termine dichiarato", value: "\(summary.recordsWithReportedEnd) / \(summary.records)")
             }

@@ -61,6 +61,7 @@
 "Periodo UTC" = "UTC period";
 "Sorgenti" = "Sources";
 "Unità riportate" = "Reported units";
+"Statistiche riportate" = "Reported statistics";
 "Record con termine dichiarato" = "Records with reported end time";
 "Scrittura esclusa: unità, intervallo o significato dei valori non verificati." = "Writing excluded: unit, interval, or value meaning is not verified.";
 "Passi in sola lettura: l'export non documenta se ogni riga sia un delta o un totale cumulativo, né il suo intervallo." = "Steps are read-only: the export does not document whether each row is a delta or a cumulative total, or its interval.";

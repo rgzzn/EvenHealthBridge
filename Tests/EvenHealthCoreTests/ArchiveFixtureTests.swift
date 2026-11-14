@@ -73,7 +73,7 @@ private func withArchive(_ files: [String: String], body: (URL) throws -> Void) 
 @Test func parserRetainsReportedUnitsAndEndTimestampsAsPreviewEvidence() throws {
     let timestamp = "2026-11-14T10:00:00Z"
     let end = "2026-11-14T10:10:00Z"
-    let steps = "timestamp,value,source,unit,end_ts\n\(timestamp),42,R1,count,\(end)\n"
+    let steps = "timestamp,value,source,unit,end_ts,ty\n\(timestamp),42,R1,count,\(end),avg\n"
 
     try withArchive(["steps.csv": steps]) { url in
         let dataset = try EvenDataParser().parseArchive(at: url)
@@ -87,6 +87,7 @@ private func withArchive(_ files: [String: String], body: (URL) throws -> Void) 
         #expect(sample.originalUnit == "count")
         #expect(sample.intervalEnd == EvenDataParser.parseDate(end))
         #expect(summary.reportedUnits == ["count"])
+        #expect(summary.reportedStatistics == ["avg"])
         #expect(summary.recordsWithReportedEnd == 1)
         #expect(sample.validation == .ambiguousSemantics)
     }
