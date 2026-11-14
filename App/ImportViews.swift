@@ -179,14 +179,14 @@ struct ImportPreviewView: View {
                 .font(.footnote)
                 .foregroundStyle(.secondary)
             if !plan.newSamples.isEmpty {
-                DisclosureGroup("Esamina le \(plan.newSamples.count) fasi nuove") {
+                DisclosureGroup(String(format: String(localized: "Esamina le %@ fasi nuove"), locale: .current, String(plan.newSamples.count))) {
                     ForEach(plan.newSamples) { sample in
                         SleepStagePreviewRow(sample: sample, previewInDeviceTimeZone: previewInDeviceTimeZone)
                     }
                 }
             }
             if let written = coordinator.writtenCount {
-                Label("Nuove fasi salvate: \(written)", systemImage: "checkmark.circle")
+                Label(String(format: String(localized: "Nuove fasi salvate: %@"), locale: .current, String(written)), systemImage: "checkmark.circle")
                     .foregroundStyle(.green)
             }
             Button("Importa il sonno in Apple Salute") {
