@@ -1,26 +1,33 @@
-# Analisi degli export locali (8 e 13 novembre 2026)
+# Analysis of local exports (8 and 13 November 2026)
 
-Analisi strutturale di `Even_health_data_20261108.zip`, verificata contro `Even_health_data_20261113.zip`. Gli archivi contengono dati sanitari reali e restano esclusi da Git. Questo documento riporta solo schemi e statistiche aggregate.
+Structural analysis of `Even_health_data_20261108.zip`, checked against
+`Even_health_data_20261113.zip`. The archives contain real health data and
+remain excluded from Git. This document reports schemas and aggregate statistics
+only; it does not contain biometric values.
 
-| CSV | Righe 8 nov | Righe 13 nov | Campi | Osservazioni |
+| CSV | Rows, 8 Nov | Rows, 13 Nov | Fields | Notes |
 | --- | ---: | ---: | --- | --- |
-| steps | 674 | 1446 | timestamp, value, source | Due sorgenti per istante: R1 e ring1Notify; intervallo dell'aggregato non dichiarato |
-| calories | 674 | 1446 | timestamp, value, resting, active, source | R1 e ring1Notify; resting/active non sono presenti in tutte le righe; finestra temporale non dichiarata |
-| heart_rate | 594 | 1188 | timestamp, value, source, ty | R1 e ring1Notify; gruppi min/max/avg, senza finestra statistica dichiarata |
-| hrv | 624 | 1236 | timestamp, value, source, ty | R1 e ring1Notify; gruppi min/max/avg, metrica non dichiarata |
-| blood_oxygen | 552 | 1122 | timestamp, value, source, ty | R1 e ring1Notify; gruppi min/max/avg, metodo di campionamento non dichiarato |
-| sleep | 14 | 29 | timestamp, start_ts, end_ts, total_time, wake_time, rem_time, light_time, deep_time, stages, source, tz, body_temp_delta | Codici stage 0/1/2/3 e intervalli completi; un record aggiuntivo nel secondo export |
-| skin_temperature | 11 | 23 | timestamp, value, source | R1 e ring1Notify; unità e significato non dichiarati |
+| steps | 674 | 1,446 | timestamp, value, source | Two sources at each instant: R1 and ring1Notify; aggregate interval not declared |
+| calories | 674 | 1,446 | timestamp, value, resting, active, source | R1 and ring1Notify; resting/active are absent from some rows; time window not declared |
+| heart_rate | 594 | 1,188 | timestamp, value, source, ty | R1 and ring1Notify; min/max/avg groups with no declared statistical window |
+| hrv | 624 | 1,236 | timestamp, value, source, ty | R1 and ring1Notify; min/max/avg groups; metric not declared |
+| blood_oxygen | 552 | 1,122 | timestamp, value, source, ty | R1 and ring1Notify; min/max/avg groups; sampling method not declared |
+| sleep | 14 | 29 | timestamp, start_ts, end_ts, total_time, wake_time, rem_time, light_time, deep_time, stages, source, tz, body_temp_delta | Stage codes 0/1/2/3 and complete intervals; one additional row in the second export |
+| skin_temperature | 11 | 23 | timestamp, value, source | R1 and ring1Notify; unit and meaning not declared |
 
-I timestamp sono stringhe ISO 8601 con offset. Il secondo export ha mantenuto esattamente le stesse intestazioni, le due sorgenti e le categorie statistiche; questa stabilità di schema non dimostra tuttavia le semantiche mancanti. `steps` non dichiara la durata dell'aggregato: non si può costruire un intervallo HealthKit affidabile. Le serie `min/max/avg` non dichiarano né finestra statistica né istante dei singoli campioni: non vanno trasformate in tre campioni HealthKit. HRV non specifica SDNN o RMSSD. Calorie `resting` e `active` richiedono conferma della definizione e della finestra; `value` non va interpretato come un terzo tipo di energia. La temperatura può essere assoluta o differenziale e gli zeri possono essere sentinelle.
+Timestamps are ISO 8601 strings with offsets. The second export retained the same headers, sources, and statistical categories. That schema stability does not prove the missing measurement semantics. `steps` does not declare aggregate duration, so the app cannot construct a reliable HealthKit interval. The `min`/`max`/`avg` series do not declare a statistical window or individual sample times, so the app must not turn them into three HealthKit samples. HRV does not identify SDNN or RMSSD. Calorie `resting` and `active` components need confirmed definitions and a time window; `value` is not interpreted as a third energy type. Temperature may be absolute or differential, and zero values may be sentinels.
 
-Verifica interna del sonno: per ognuna delle 7 sessioni R1 la somma `half_minutes × 30` di ciascun codice coincide esattamente con l'aggregato omonimo: 0 = veglia, 1 = REM, 2 = leggero, 3 = profondo. La somma di tutte le fasi coincide esattamente con `end_ts - start_ts`; `total_time` esclude la veglia. Questo supporta il mapping delle fasi, purché le medesime uguaglianze siano verificate a ogni importazione e non vi siano fasi sovrapposte o codici ignoti.
+## Sleep validation
 
-Tre coppie di sessioni R1 si sovrappongono nel tempo; solo una sessione non si sovrappone ad altre. Le coppie sovrapposte sono classificate come conflitti e non vengono scritte automaticamente. Nel dataset locale risultano 25 fasi idonee, 25 copie tra sorgenti e 304 record di fase in conflitto.
+For each of the seven R1 sessions, the sum of `half_minutes × 30` for each stage code exactly matches its corresponding aggregate: 0 = awake, 1 = REM, 2 = core/light, and 3 = deep. The sum of every stage exactly matches `end_ts - start_ts`; `total_time` excludes awake time. This supports the stage mapping only when the same checks pass on every import and no stages overlap or use unknown codes.
 
-Il parser confronta anche l'intera sequenza di fasi tra `R1` e `ring1Notify` per la stessa sessione. Se le due sorgenti concordano sugli aggregati ma differiscono nella suddivisione delle fasi, l'intera sessione viene classificata come conflitto.
+Three pairs of R1 sessions overlap in time; only one session does not overlap another. Overlapping pairs are classified as conflicts and are not written automatically. The local dataset contained 25 eligible stages, 25 cross-source copies, and 304 conflicting stage records.
 
-Decisione: tutte le sette categorie sono analizzabili e visualizzabili; il sonno può essere proposto per la scrittura solo dopo validazione puntuale delle durate e consenso. Le altre categorie restano escluse fino alla conferma di unità, semantica e intervalli.
+The parser also compares the complete stage sequence between R1 and `ring1Notify` for the same session. If the sources agree on aggregates but differ in stage breakdown, the complete session is classified as a conflict.
+
+## Import decision
+
+All seven categories can be analysed and previewed. Sleep may be offered for writing only after per-import duration validation and user consent. Every other category remains excluded until its unit, semantics, and intervals are confirmed.
 
 ## Observed timestamp cadence (research only)
 
@@ -46,4 +53,4 @@ to infer a measurement's start or end. The app therefore does not turn the
 observed 10-minute or hourly gaps into HealthKit intervals, and never treats an
 absent timestamp as a gap it may fill.
 
-Le [istruzioni ufficiali Even per HRV](https://support.evenrealities.com/hc/en-us/articles/17450890638863-Health-HRV) descrivono la metrica in termini generali e la sincronizzazione oraria, senza specificare SDNN o RMSSD: HRV resta esclusa. La [documentazione ufficiale sulla temperatura](https://support.evenrealities.com/hc/en-us/articles/15317531195023-R1-cannot-detect-body-temperature) la descrive come deviazione durante il sonno rispetto a una baseline, quindi `skin_temperature.value` non può essere trattato come temperatura corporea assoluta. Le pagine ufficiali per [passi](https://support.evenrealities.com/hc/en-us/articles/17450483973391-Health-Steps), [frequenza cardiaca](https://support.evenrealities.com/hc/en-us/articles/17450824705423-Health-Heart-rate), [calorie attive](https://support.evenrealities.com/hc/en-us/articles/17450671491215-Health-Active-calories) e [SpO₂](https://support.evenrealities.com/hc/en-us/articles/17451336978063-Health-SpO2) confermano le categorie mostrate all’utente, ma non definiscono l’unità, la finestra statistica o l’intervallo di ogni riga CSV. La frequenza di sincronizzazione non è la durata del campione e non sblocca un mapping HealthKit.
+Even's official [HRV guidance](https://support.evenrealities.com/hc/en-us/articles/17450890638863-Health-HRV) describes the metric generally and its hourly synchronisation, but does not say whether it is SDNN or RMSSD; HRV remains excluded. Its [temperature documentation](https://support.evenrealities.com/hc/en-us/articles/15317531195023-R1-cannot-detect-body-temperature) describes a sleep-time deviation from a baseline, so `skin_temperature.value` cannot be treated as an absolute body temperature. The official pages for [steps](https://support.evenrealities.com/hc/en-us/articles/17450483973391-Health-Steps), [heart rate](https://support.evenrealities.com/hc/en-us/articles/17450824705423-Health-Heart-rate), [active calories](https://support.evenrealities.com/hc/en-us/articles/17450671491215-Health-Active-calories), and [SpO2](https://support.evenrealities.com/hc/en-us/articles/17451336978063-Health-SpO2) confirm the categories shown to the user, but do not define the unit, statistical window, or per-row interval in the CSV. Synchronisation frequency is not sample duration and does not unlock a HealthKit mapping.
