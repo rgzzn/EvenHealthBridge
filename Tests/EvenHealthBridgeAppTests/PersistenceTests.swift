@@ -61,6 +61,11 @@ private final class SyntheticArchiveMarker {}
     return try ModelContainer(for: StoredImportSession.self, StoredImportAttempt.self, StoredSample.self, configurations: configuration)
 }
 
+@MainActor private func makeInMemoryContainer() throws -> ModelContainer {
+    let configuration = ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
+    return try ModelContainer(for: StoredImportSession.self, StoredImportAttempt.self, StoredSample.self, configurations: configuration)
+}
+
 @MainActor @Test func unavailableLocalStoreNeverFallsBackToEmptyHistory() throws {
     let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
     try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
@@ -70,10 +75,7 @@ private final class SyntheticArchiveMarker {}
 }
 
 @MainActor @Test func interruptedHistoryRecordsSafeReasonAndConfirmedLocalCount() throws {
-    let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
-    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-    defer { try? FileManager.default.removeItem(at: directory) }
-    let context = ModelContext(try makeContainer(at: directory.appendingPathComponent("Interrupted.store")))
+    let context = ModelContext(try makeInMemoryContainer())
     let start = Date(timeIntervalSince1970: 1_700_000_000)
     let end = start.addingTimeInterval(60)
     let sample = HealthMeasurement(id: "local-stage", kind: .sleep, timestamp: start,
