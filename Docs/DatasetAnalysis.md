@@ -22,4 +22,28 @@ Il parser confronta anche l'intera sequenza di fasi tra `R1` e `ring1Notify` per
 
 Decisione: tutte le sette categorie sono analizzabili e visualizzabili; il sonno può essere proposto per la scrittura solo dopo validazione puntuale delle durate e consenso. Le altre categorie restano escluse fino alla conferma di unità, semantica e intervalli.
 
+## Observed timestamp cadence (research only)
+
+This analysis uses timestamp differences only, grouped by source and statistical
+label. It does not inspect or report biometric values. It helps describe the
+export shape, but is **not** evidence of a HealthKit sample interval or a
+value's meaning.
+
+- `steps.csv` and `calories.csv`: R1 and `ring1Notify` report at the same
+  unique timestamps. A 600-second gap is dominant (298 of 336 consecutive gaps
+  in the 8 November export, and 654 of 722 in the 13 November export), with
+  1,200-second, 1,800-second, and longer gaps also present.
+- `heart_rate.csv`, `hrv.csv`, and `blood_oxygen.csv`: each source has `min`,
+  `max`, and `avg` rows at shared timestamps. A 3,600-second gap is dominant
+  for every label in both exports, but two-hour and longer gaps occur.
+- `skin_temperature.csv`: the sources have no shared stable cadence. R1 is
+  mostly separated by one or two days, while `ring1Notify` has irregular short
+  and near-daily gaps.
+
+Regular reporting cadence may be a sync schedule, a bucket boundary, or the
+time at which an aggregate is emitted. Missing timestamps also make it unsafe
+to infer a measurement's start or end. The app therefore does not turn the
+observed 10-minute or hourly gaps into HealthKit intervals, and never treats an
+absent timestamp as a gap it may fill.
+
 Le [istruzioni ufficiali Even per HRV](https://support.evenrealities.com/hc/en-us/articles/17450890638863-Health-HRV) descrivono la metrica in termini generali e la sincronizzazione oraria, senza specificare SDNN o RMSSD: HRV resta esclusa. La [documentazione ufficiale sulla temperatura](https://support.evenrealities.com/hc/en-us/articles/15317531195023-R1-cannot-detect-body-temperature) la descrive come deviazione durante il sonno rispetto a una baseline, quindi `skin_temperature.value` non può essere trattato come temperatura corporea assoluta. Le pagine ufficiali per [passi](https://support.evenrealities.com/hc/en-us/articles/17450483973391-Health-Steps), [frequenza cardiaca](https://support.evenrealities.com/hc/en-us/articles/17450824705423-Health-Heart-rate), [calorie attive](https://support.evenrealities.com/hc/en-us/articles/17450671491215-Health-Active-calories) e [SpO₂](https://support.evenrealities.com/hc/en-us/articles/17451336978063-Health-SpO2) confermano le categorie mostrate all’utente, ma non definiscono l’unità, la finestra statistica o l’intervallo di ogni riga CSV. La frequenza di sincronizzazione non è la durata del campione e non sblocca un mapping HealthKit.
