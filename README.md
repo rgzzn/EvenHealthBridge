@@ -31,6 +31,8 @@ The preview shows the category-specific missing evidence instead of a generic wa
 
 For future validated categories, the core includes a conservative overlay planner. It accepts only complete Even intervals that are eligible for writing and have no overlap with existing Health coverage. It excludes the entire sample on any overlap and never creates a partial value for a short uncovered fragment. The planner is not connected to any new HealthKit writer until a category clears its semantic gate.
 
+The implementation gates, current reusable overlay components, and verification criteria for another wearable or metric are detailed in [the multi-wearable integration plan](Docs/MultiWearableIntegrationPlan.md).
+
 ## Apple Watch study
 
 After analysing a ZIP archive, open the **Study** tab and select the comparison start and end dates. **Compare with Apple Watch** requests read-only HealthKit access to steps, active energy, heart rate, HRV, and oxygen saturation at that time. It identifies Watch samples primarily from the HealthKit source revision's Apple Watch product type, with a narrow `Apple Watch` name fallback only for older records that have no product type. The HealthKit adapter is parameterized by a conservative reference-source definition, so a future wearable can be added with its documented product type and historical marker without duplicating the query or comparison pipeline. It never requests write access, changes Apple Watch samples, or persists the values it reads; the report exists only in memory while the screen is open.
