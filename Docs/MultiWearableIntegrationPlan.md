@@ -37,6 +37,17 @@ Even Health Bridge remains fully local. It does not upload Health data, retain a
 | Oxygen saturation | `oxygenSaturation` | Unit, aggregation method, and interval | Blocked |
 | Temperature | No target selected | Export meaning compatible with a HealthKit type; R1 support describes a sleep temperature deviation from baseline, not body temperature | Blocked |
 
+## Current vendor evidence review
+
+The current Even support pages describe steps as a daily total, heart rate in beats per minute, active calories as excluding resting metabolic burn, and SpO₂ as oxygen-related blood data. They also state continuous collection and periodic synchronization. This confirms the user-facing categories, but it does **not** specify what one exported CSV row represents, its canonical unit, the `min`/`max`/`avg` statistical window, or the start and end of that row’s measurement interval. Therefore it does not change any write gate.
+
+- [Steps](https://support.evenrealities.com/hc/en-us/articles/17450483973391-Health-Steps)
+- [Heart rate](https://support.evenrealities.com/hc/en-us/articles/17450824705423-Health-Heart-rate)
+- [Active calories](https://support.evenrealities.com/hc/en-us/articles/17450671491215-Health-Active-calories)
+- [SpO₂](https://support.evenrealities.com/hc/en-us/articles/17451336978063-Health-SpO2)
+- [HRV](https://support.evenrealities.com/hc/en-us/articles/17450890638863-Health-HRV)
+- [Sleep temperature deviation](https://support.evenrealities.com/hc/en-us/articles/15317531195023-R1-cannot-detect-body-temperature)
+
 ## Implementation sequence for one newly documented category
 
 1. **Evidence capture** — archive the vendor documentation link, expected unit, interval semantics, aggregation behavior, and a synthetic anonymized fixture. Update `Docs/DatasetAnalysis.md` without committing real exports.
