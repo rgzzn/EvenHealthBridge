@@ -132,9 +132,9 @@ struct ImportProgressView: View {
                 ProgressView(value: Double(progress.completed), total: Double(progress.total)) {
                     Text("Scrittura del sonno")
                 } currentValueLabel: {
-                    Text("\(progress.completed) di \(progress.total) fasi")
+                    Text(String(format: String(localized: "%@ di %@ fasi"), locale: .current, String(progress.completed), String(progress.total)))
                 }
-                .accessibilityLabel("Scrittura del sonno, \(progress.completed) di \(progress.total) fasi")
+                .accessibilityLabel(String(format: String(localized: "Scrittura del sonno, %@ di %@ fasi"), locale: .current, String(progress.completed), String(progress.total)))
             } else if coordinator.isWorking {
                 ProgressView("Analisi o autorizzazione in corso")
             }
@@ -255,7 +255,7 @@ private struct CategorySummaryRow: View {
         } label: {
             VStack(alignment: .leading, spacing: 4) {
                 Text(title).font(.headline)
-                Text("\(summary.records) misurazioni · \(summary.new) nuove · \(summary.duplicates) duplicate · \(summary.excluded) escluse")
+                Text(String(format: String(localized: "%@ misurazioni · %@ nuove · %@ duplicate · %@ escluse"), locale: .current, String(summary.records), String(summary.new), String(summary.duplicates), String(summary.excluded)))
                     .font(.caption).foregroundStyle(.secondary)
             }
         }
@@ -283,12 +283,12 @@ private struct SleepStagePreviewRow: View {
                 HStack {
                     Text(stageName).font(.headline)
                     Spacer()
-                    Text("\(duration / 60) min \(duration % 60) s")
+                    Text(String(format: String(localized: "%@ min %@ s"), locale: .current, String(duration / 60), String(duration % 60)))
                         .foregroundStyle(.secondary)
                 }
                 Text("\(PreviewDateFormatting.string(sample.timestamp, inDeviceTimeZone: previewInDeviceTimeZone)) – \(PreviewDateFormatting.string(end, inDeviceTimeZone: previewInDeviceTimeZone))")
                     .font(.caption).foregroundStyle(.secondary)
-                Text("Sorgente: \(sample.source)")
+                Text(String(format: String(localized: "Sorgente: %@"), locale: .current, sample.source))
                     .font(.caption).foregroundStyle(.secondary)
             }
             .accessibilityElement(children: .combine)
@@ -348,7 +348,7 @@ private struct ImportHistoryRow: View {
         VStack(alignment: .leading, spacing: 4) {
             Text(session.importedAt.formatted(date: .abbreviated, time: .shortened)).font(.headline)
             Text(session.status).font(.subheadline)
-            Text("\(session.records) record · \(session.duplicates) duplicati · \(session.writtenSamples) fasi registrate")
+            Text(String(format: String(localized: "%@ record · %@ duplicati · %@ fasi registrate"), locale: .current, String(session.records), String(session.duplicates), String(session.writtenSamples)))
                 .font(.caption).foregroundStyle(.secondary)
         }
     }

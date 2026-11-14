@@ -225,7 +225,8 @@ struct AppleWatchStudyView: View {
         } catch is CancellationError {
             return
         } catch {
-            self.error = String(localized: "Impossibile leggere i dati Apple Watch: \(error.localizedDescription)")
+            let format = String(localized: "Impossibile leggere i dati Apple Watch: %@")
+            self.error = String(format: format, locale: .current, error.localizedDescription)
         }
     }
 

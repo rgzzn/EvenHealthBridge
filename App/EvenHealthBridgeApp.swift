@@ -259,7 +259,8 @@ final class ImportCoordinator {
             dataset = nil
         } catch {
             dataset = nil
-            self.error = String(localized: "Impossibile analizzare l'archivio: \(error.localizedDescription)")
+            let format = String(localized: "Impossibile analizzare l'archivio: %@")
+            self.error = String(format: format, locale: .current, error.localizedDescription)
             DiagnosticLoggingService.logger.error("Archive analysis failed")
         }
     }
@@ -306,7 +307,8 @@ final class ImportCoordinator {
         let session = try currentAttempt(in: context, dataset: dataset)
         session.writtenSamples = saved
         session.excluded = try excludedCount(in: context)
-        session.status = String(localized: "\(reason.title): \(saved) fasi registrate localmente; verifica al prossimo tentativo.")
+        let format = String(localized: "%@: %@ fasi registrate localmente; verifica al prossimo tentativo.")
+        session.status = String(format: format, locale: .current, reason.title, String(saved))
         try context.save()
     }
 

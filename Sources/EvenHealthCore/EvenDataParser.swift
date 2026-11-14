@@ -15,7 +15,8 @@ public enum EvenParserError: LocalizedError, Equatable {
     public var errorDescription: String? {
         switch self {
         case .tooManyMeasurements(let limit):
-            String(localized: "L'archivio contiene più di \(limit) misurazioni. Importazione interrotta per proteggere la memoria del dispositivo.")
+            let format = String(localized: "L'archivio contiene più di %@ misurazioni. Importazione interrotta per proteggere la memoria del dispositivo.")
+            return String(format: format, locale: .current, String(limit))
         }
     }
 }
@@ -92,14 +93,16 @@ public struct EvenDataParser: Sendable {
             guard let kind = kindsByFilename[filename] else { return }
             do {
                 try csv.forEachRowRecovering(data, onRejected: { number in
-                    addWarning(String(localized: "\(filename): record CSV \(number) scartato"))
+                    let format = String(localized: "%@: record CSV %@ scartato")
+                    addWarning(String(format: format, locale: .current, filename, String(number)))
                 }) { recordNumber, row in
                     if recordNumber.isMultiple(of: 256) { try Task.checkCancellation() }
                     if kind == .sleep {
                         let stages: [HealthMeasurement]
                         do { stages = try parseSleep(row) }
                         catch {
-                            addWarning(String(localized: "sleep.csv: sessione non valida nel record \(recordNumber)"))
+                            let format = String(localized: "sleep.csv: sessione non valida nel record %@")
+                            addWarning(String(format: format, locale: .current, String(recordNumber)))
                             return
                         }
                         guard stages.count <= maxMeasurements - measurements.count else {
@@ -109,7 +112,8 @@ public struct EvenDataParser: Sendable {
                         return
                     }
                     guard let time = row["timestamp"], let date = Self.parseDate(time) else {
-                        addWarning(String(localized: "\(filename): record \(recordNumber) con timestamp non valido"))
+                        let format = String(localized: "%@: record %@ con timestamp non valido")
+                        addWarning(String(format: format, locale: .current, filename, String(recordNumber)))
                         return
                     }
                     let source = row["source"] ?? "unknown"
@@ -137,13 +141,18 @@ public struct EvenDataParser: Sendable {
                     measurements.append(.init(id: id, kind: kind, timestamp: date, originalTimestamp: time, source: source, value: value, components: components, originalUnit: nil, canonicalUnit: nil, statistic: statistic, intervalEnd: end, sleepStage: nil, sessionEnd: nil, provenance: filename, validation: validation))
                 }
             } catch is CSVError {
-                addWarning(String(localized: "\(filename): intestazione o codifica CSV non valida"))
+                let format = String(localized: "%@: intestazione o codifica CSV non valida")
+                addWarning(String(format: format, locale: .current, filename))
             }
         }
         for (filename, _) in fileKinds where !seen.contains(filename) {
-            addWarning(String(localized: "File mancante: \(filename)"))
+            let format = String(localized: "File mancante: %@")
+            addWarning(String(format: format, locale: .current, filename))
         }
-        if omittedWarnings > 0 { warnings.append(String(localized: "Altri \(omittedWarnings) avvisi omessi; controlla la qualità dell'archivio.")) }
+        if omittedWarnings > 0 {
+            let format = String(localized: "Altri %@ avvisi omessi; controlla la qualità dell'archivio.")
+            warnings.append(String(format: format, locale: .current, String(omittedWarnings)))
+        }
         return .init(measurements: MeasurementDeduplicator().resolve(measurements), warnings: warnings, archiveHash: try hashFile(url))
     }
 
