@@ -318,7 +318,8 @@ final class ImportCoordinator {
             let saved = try context.fetch(FetchDescriptor<StoredSample>()).filter { ids.contains($0.stableID) }.count
             session.writtenSamples = saved
             session.lastSyncedAt = .now
-            session.status = String(localized: "Sonno sincronizzato: \(saved) campioni, \(writtenCount) nuovi in questo tentativo")
+            let statusFormat = String(localized: "Sonno sincronizzato: %lld campioni, %lld nuovi in questo tentativo")
+            session.status = String(format: statusFormat, locale: .current, saved, writtenCount)
         }
         session.excluded = try excludedCount(in: context)
         try context.save()

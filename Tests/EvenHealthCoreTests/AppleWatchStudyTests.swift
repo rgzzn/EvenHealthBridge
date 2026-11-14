@@ -39,7 +39,79 @@ import Testing
     #expect(result?.medianAbsoluteDifference == nil)
 }
 
+@Test func coverageMatchingMaximizesPairsInsteadOfTakingTheNearestFirstReference() {
+    let origin = Date(timeIntervalSince1970: 1_700_200_000)
+    let first = measurement(id: "even-first", kind: .heartRate, timestamp: origin, value: 70, statistic: "avg")
+    let second = measurement(id: "even-second", kind: .heartRate, timestamp: origin.addingTimeInterval(10 * 60), value: 74, statistic: "avg")
+    let earlierReference = AppleWatchReferenceSample(id: "watch-earlier", metric: .heartRate, timestamp: origin.addingTimeInterval(-5 * 60), value: 71)
+    let laterReference = AppleWatchReferenceSample(id: "watch-later", metric: .heartRate, timestamp: origin.addingTimeInterval(4 * 60), value: 75)
+
+    let result = AppleWatchStudyEngine().study(
+        measurements: [second, first], references: [laterReference, earlierReference],
+        interval: DateInterval(start: origin.addingTimeInterval(-10 * 60), end: origin.addingTimeInterval(20 * 60))
+    ).results.first { $0.metric == .heartRate }
+
+    #expect(result?.matchedRecords == 2)
+    #expect(result?.unmatchedEvenRecords == 0)
+    #expect(result?.unmatchedReferenceRecords == 0)
+}
+
+@Test func temporalOnlyContractsNeverProduceANumericDifference() {
+    let origin = Date(timeIntervalSince1970: 1_700_300_000)
+    let hrv = measurement(id: "hrv", kind: .hrv, timestamp: origin, value: 42, statistic: "avg")
+    let reference = AppleWatchReferenceSample(id: "watch-hrv", metric: .hrv, timestamp: origin, value: 9)
+
+    let result = AppleWatchStudyEngine().study(
+        measurements: [hrv], references: [reference],
+        interval: DateInterval(start: origin.addingTimeInterval(-1), end: origin.addingTimeInterval(1))
+    ).results.first { $0.metric == .hrv }
+
+    #expect(result?.matchedRecords == 1)
+    #expect(result?.medianAbsoluteDifference == nil)
+    #expect(result?.contract.comparisonMode == .temporalPresence)
+    #expect(result?.contract.writeStatus == .blockedByUnknownMetric)
+}
+
+@Test func coverageReportsParserConflictsAndNeverPairsExcludedMeasurements() {
+    let origin = Date(timeIntervalSince1970: 1_700_400_000)
+    let usable = measurement(id: "usable", kind: .oxygen, timestamp: origin, value: 97, statistic: "avg")
+    let conflict = measurement(id: "conflict", kind: .oxygen, timestamp: origin, value: 98, statistic: "avg", validation: .conflict)
+    let duplicate = measurement(id: "duplicate", kind: .oxygen, timestamp: origin, value: 99, statistic: "avg", validation: .duplicate)
+    let references = [
+        AppleWatchReferenceSample(id: "watch-usable", metric: .oxygen, timestamp: origin, value: 97),
+        AppleWatchReferenceSample(id: "watch-unused", metric: .oxygen, timestamp: origin.addingTimeInterval(60), value: 98)
+    ]
+
+    let result = AppleWatchStudyEngine().study(
+        measurements: [usable, conflict, duplicate], references: references,
+        interval: DateInterval(start: origin.addingTimeInterval(-1), end: origin.addingTimeInterval(120))
+    ).results.first { $0.metric == .oxygen }
+
+    #expect(result?.evenRecordsInRange == 3)
+    #expect(result?.comparableEvenRecords == 1)
+    #expect(result?.excludedEvenRecords == 2)
+    #expect(result?.conflictingEvenRecords == 1)
+    #expect(result?.matchedRecords == 1)
+    #expect(result?.unmatchedReferenceRecords == 1)
+}
+
+@Test func coverageUsesAnEndExclusiveStudyInterval() {
+    let origin = Date(timeIntervalSince1970: 1_700_500_000)
+    let inside = measurement(id: "inside", kind: .heartRate, timestamp: origin, value: 70, statistic: "avg")
+    let atEnd = measurement(id: "at-end", kind: .heartRate, timestamp: origin.addingTimeInterval(60), value: 71, statistic: "avg")
+    let reference = AppleWatchReferenceSample(id: "watch", metric: .heartRate, timestamp: origin, value: 70)
+
+    let result = AppleWatchStudyEngine().study(
+        measurements: [inside, atEnd], references: [reference],
+        interval: DateInterval(start: origin, end: origin.addingTimeInterval(60))
+    ).results.first { $0.metric == .heartRate }
+
+    #expect(result?.evenRecordsInRange == 1)
+    #expect(result?.matchedRecords == 1)
+}
+
 private func measurement(
+    id: String = UUID().uuidString,
     kind: MeasurementKind,
     timestamp: Date,
     value: Decimal,
@@ -48,7 +120,7 @@ private func measurement(
     validation: ImportValidation = .ambiguousSemantics
 ) -> HealthMeasurement {
     HealthMeasurement(
-        id: UUID().uuidString, kind: kind, timestamp: timestamp,
+        id: id, kind: kind, timestamp: timestamp,
         originalTimestamp: timestamp.ISO8601Format(), source: "R1", value: value,
         components: components, originalUnit: nil, canonicalUnit: nil, statistic: statistic,
         intervalEnd: nil, sleepStage: nil, sessionEnd: nil, provenance: "fixture.csv", validation: validation

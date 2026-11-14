@@ -1,8 +1,7 @@
 import Foundation
 
-/// Categories read from Apple Health only to evaluate the meaning of an Even export.
-/// A study never changes a HealthKit record and never makes a category importable.
-public enum AppleWatchStudyMetric: String, CaseIterable, Sendable, Identifiable {
+/// Stable metric keys shared by local coverage studies, regardless of the reference wearable.
+public enum SourceCoverageMetric: String, CaseIterable, Sendable, Identifiable {
     case steps
     case activeEnergy
     case heartRate
@@ -20,52 +19,95 @@ public enum AppleWatchStudyMetric: String, CaseIterable, Sendable, Identifiable 
         case .oxygen: String(localized: "Ossigenazione")
         }
     }
-
-    /// This is a matching tolerance for a study, not an asserted sensor sampling interval.
-    var matchingTolerance: TimeInterval {
-        switch self {
-        case .steps, .activeEnergy, .heartRate: 15 * 60
-        case .hrv, .oxygen: 70 * 60
-        }
-    }
-
-    var requiresAverageStatistic: Bool {
-        switch self {
-        case .heartRate, .hrv, .oxygen: true
-        case .steps, .activeEnergy: false
-        }
-    }
-
-    var supportsNumericDifference: Bool {
-        switch self {
-        case .heartRate, .hrv, .oxygen: true
-        case .steps, .activeEnergy: false
-        }
-    }
 }
 
-public struct AppleWatchReferenceSample: Sendable, Hashable {
-    public let metric: AppleWatchStudyMetric
+/// Health import remains disabled for every contract until its semantics and interval are verified.
+public enum SourceCoverageWriteStatus: String, Sendable {
+    case blockedByUnknownInterval
+    case blockedByUnknownMetric
+    case blockedByUnverifiedSemantics
+}
+
+public enum SourceCoverageComparisonMode: String, Sendable {
+    /// Indicates temporal presence only. It must not be interpreted as a numeric comparison or a gap to fill.
+    case temporalPresence
+    /// A descriptive difference for research. It never determines HealthKit eligibility.
+    case descriptiveNumericDifference
+}
+
+/// Declarative, conservative rules for one metric. These rules are local evidence rules, not import rules.
+public struct SourceCoverageMetricContract: Sendable {
+    public let metric: SourceCoverageMetric
+    public let measurementKind: MeasurementKind
+    public let matchingTolerance: TimeInterval
+    public let comparisonMode: SourceCoverageComparisonMode
+    public let requiresAverageStatistic: Bool
+    public let writeStatus: SourceCoverageWriteStatus
+
+    public init(
+        metric: SourceCoverageMetric,
+        measurementKind: MeasurementKind,
+        matchingTolerance: TimeInterval,
+        comparisonMode: SourceCoverageComparisonMode,
+        requiresAverageStatistic: Bool,
+        writeStatus: SourceCoverageWriteStatus
+    ) {
+        self.metric = metric
+        self.measurementKind = measurementKind
+        self.matchingTolerance = matchingTolerance
+        self.comparisonMode = comparisonMode
+        self.requiresAverageStatistic = requiresAverageStatistic
+        self.writeStatus = writeStatus
+    }
+
+    public static let standard: [SourceCoverageMetricContract] = [
+        .init(metric: .steps, measurementKind: .steps, matchingTolerance: 15 * 60,
+              comparisonMode: .temporalPresence, requiresAverageStatistic: false,
+              writeStatus: .blockedByUnknownInterval),
+        .init(metric: .activeEnergy, measurementKind: .calories, matchingTolerance: 15 * 60,
+              comparisonMode: .temporalPresence, requiresAverageStatistic: false,
+              writeStatus: .blockedByUnknownInterval),
+        .init(metric: .heartRate, measurementKind: .heartRate, matchingTolerance: 15 * 60,
+              comparisonMode: .descriptiveNumericDifference, requiresAverageStatistic: true,
+              writeStatus: .blockedByUnknownInterval),
+        .init(metric: .hrv, measurementKind: .hrv, matchingTolerance: 70 * 60,
+              comparisonMode: .temporalPresence, requiresAverageStatistic: true,
+              writeStatus: .blockedByUnknownMetric),
+        .init(metric: .oxygen, measurementKind: .oxygen, matchingTolerance: 70 * 60,
+              comparisonMode: .descriptiveNumericDifference, requiresAverageStatistic: true,
+              writeStatus: .blockedByUnverifiedSemantics)
+    ]
+}
+
+/// A normalized sample from a reference source. The core does not import HealthKit or identify wearables.
+public struct SourceCoverageReferenceSample: Sendable, Hashable {
+    public let id: String
+    public let metric: SourceCoverageMetric
     public let timestamp: Date
     public let value: Double
 
-    public init(metric: AppleWatchStudyMetric, timestamp: Date, value: Double) {
+    public init(id: String? = nil, metric: SourceCoverageMetric, timestamp: Date, value: Double) {
+        self.id = id ?? "\(metric.rawValue)-\(timestamp.timeIntervalSinceReferenceDate)-\(value)"
         self.metric = metric
         self.timestamp = timestamp
         self.value = value
     }
 }
 
-public struct AppleWatchMetricStudyResult: Sendable, Identifiable {
-    public let metric: AppleWatchStudyMetric
+public struct SourceCoverageMetricResult: Sendable, Identifiable {
+    public let contract: SourceCoverageMetricContract
     public let evenRecordsInRange: Int
     public let comparableEvenRecords: Int
-    public let appleWatchRecords: Int
+    public let excludedEvenRecords: Int
+    public let conflictingEvenRecords: Int
+    public let referenceRecords: Int
     public let matchedRecords: Int
     public let unmatchedEvenRecords: Int
+    public let unmatchedReferenceRecords: Int
     public let medianAbsoluteDifference: Double?
 
-    public var id: AppleWatchStudyMetric { metric }
+    public var id: SourceCoverageMetric { contract.metric }
+    public var metric: SourceCoverageMetric { contract.metric }
 
     public var coverage: Double? {
         guard comparableEvenRecords > 0 else { return nil }
@@ -73,103 +115,111 @@ public struct AppleWatchMetricStudyResult: Sendable, Identifiable {
     }
 }
 
-public struct AppleWatchStudyReport: Sendable {
+public struct SourceCoverageReport: Sendable {
     public let interval: DateInterval
-    public let results: [AppleWatchMetricStudyResult]
+    public let results: [SourceCoverageMetricResult]
 
-    public init(interval: DateInterval, results: [AppleWatchMetricStudyResult]) {
+    public init(interval: DateInterval, results: [SourceCoverageMetricResult]) {
         self.interval = interval
         self.results = results
     }
 }
 
-/// Pure domain logic for a local, read-only Apple Watch comparison.
-public struct AppleWatchStudyEngine: Sendable {
-    public init() {}
+/// Pure, local coverage analysis. It never writes HealthKit data and cannot make a metric importable.
+public struct SourceCoverageEngine: Sendable {
+    private let contracts: [SourceCoverageMetricContract]
 
-    public func study(
+    public init(contracts: [SourceCoverageMetricContract] = SourceCoverageMetricContract.standard) {
+        self.contracts = contracts
+    }
+
+    public func analyze(
         measurements: [HealthMeasurement],
-        references: [AppleWatchReferenceSample],
+        references: [SourceCoverageReferenceSample],
         interval: DateInterval
-    ) -> AppleWatchStudyReport {
-        let results = AppleWatchStudyMetric.allCases.map { metric in
-            makeResult(metric: metric, measurements: measurements, references: references, interval: interval)
-        }
-        return AppleWatchStudyReport(interval: interval, results: results)
+    ) -> SourceCoverageReport {
+        SourceCoverageReport(
+            interval: interval,
+            results: contracts.map { contract in
+                makeResult(contract: contract, measurements: measurements, references: references, interval: interval)
+            }
+        )
     }
 
     private func makeResult(
-        metric: AppleWatchStudyMetric,
+        contract: SourceCoverageMetricContract,
         measurements: [HealthMeasurement],
-        references: [AppleWatchReferenceSample],
+        references: [SourceCoverageReferenceSample],
         interval: DateInterval
-    ) -> AppleWatchMetricStudyResult {
-        let allEven = measurements.filter {
-            $0.kind == measurementKind(for: metric) && interval.contains($0.timestamp)
+    ) -> SourceCoverageMetricResult {
+        let allEven = measurements.filter { $0.kind == contract.measurementKind && isInStudyInterval($0.timestamp, interval: interval) }
+        let candidates = allEven.compactMap { comparableValue(for: $0, contract: contract) }
+        let referenceValues = references
+            .filter { $0.metric == contract.metric && isInStudyInterval($0.timestamp, interval: interval) && $0.value.isFinite }
+            .map { TimedValue(id: $0.id, timestamp: $0.timestamp, value: $0.value) }
+            .sorted(by: TimedValue.order)
+        let pairings = pair(candidates.sorted(by: TimedValue.order), with: referenceValues, tolerance: contract.matchingTolerance)
+        let differences: [Double]
+        switch contract.comparisonMode {
+        case .temporalPresence: differences = []
+        case .descriptiveNumericDifference: differences = pairings.map { abs($0.even.value - $0.reference.value) }
         }
-        let candidates = allEven.compactMap { item -> TimedValue? in
-            guard item.validation != .duplicate,
-                  item.validation != .malformed,
-                  item.validation != .implausible,
-                  item.validation != .conflict,
-                  let value = comparableValue(for: item, metric: metric) else { return nil }
-            return TimedValue(timestamp: item.timestamp, value: value)
-        }
-        let appleWatch = references
-            .filter { $0.metric == metric && interval.contains($0.timestamp) }
-            .map { TimedValue(timestamp: $0.timestamp, value: $0.value) }
-            .sorted { $0.timestamp < $1.timestamp }
-        let pairings = pair(candidates.sorted { $0.timestamp < $1.timestamp }, with: appleWatch, tolerance: metric.matchingTolerance)
-        let differences: [Double] = metric.supportsNumericDifference
-            ? pairings.map { abs($0.even.value - $0.reference.value) }
-            : []
-        return AppleWatchMetricStudyResult(
-            metric: metric,
+        return SourceCoverageMetricResult(
+            contract: contract,
             evenRecordsInRange: allEven.count,
             comparableEvenRecords: candidates.count,
-            appleWatchRecords: appleWatch.count,
+            excludedEvenRecords: allEven.count - candidates.count,
+            conflictingEvenRecords: allEven.filter { $0.validation == .conflict }.count,
+            referenceRecords: referenceValues.count,
             matchedRecords: pairings.count,
             unmatchedEvenRecords: candidates.count - pairings.count,
+            unmatchedReferenceRecords: referenceValues.count - pairings.count,
             medianAbsoluteDifference: median(differences)
         )
     }
 
-    private func measurementKind(for metric: AppleWatchStudyMetric) -> MeasurementKind {
-        switch metric {
-        case .steps: .steps
-        case .activeEnergy: .calories
-        case .heartRate: .heartRate
-        case .hrv: .hrv
-        case .oxygen: .oxygen
-        }
-    }
-
-    private func comparableValue(for item: HealthMeasurement, metric: AppleWatchStudyMetric) -> Double? {
-        if metric.requiresAverageStatistic,
-           item.statistic?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() != "avg" {
-            return nil
-        }
+    private func comparableValue(for item: HealthMeasurement, contract: SourceCoverageMetricContract) -> TimedValue? {
+        guard item.validation != .duplicate,
+              item.validation != .malformed,
+              item.validation != .implausible,
+              item.validation != .conflict else { return nil }
+        if contract.requiresAverageStatistic,
+           item.statistic?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() != "avg" { return nil }
         let decimal: Decimal?
-        switch metric {
+        switch contract.metric {
         case .activeEnergy: decimal = item.components["active"]
         default: decimal = item.value
         }
         guard let decimal else { return nil }
-        return NSDecimalNumber(decimal: decimal).doubleValue
+        let value = NSDecimalNumber(decimal: decimal).doubleValue
+        guard value.isFinite else { return nil }
+        return TimedValue(id: item.id, timestamp: item.timestamp, value: value)
     }
 
+    /// Study windows are half-open: [start, end). Adjacent studies therefore cannot count a boundary sample twice.
+    private func isInStudyInterval(_ timestamp: Date, interval: DateInterval) -> Bool {
+        timestamp >= interval.start && timestamp < interval.end
+    }
+
+    /// Chronological one-to-one matching maximizes the number of pairs under a fixed tolerance.
+    /// Stable IDs make equal timestamps deterministic and a reference can never be used twice.
     private func pair(_ even: [TimedValue], with references: [TimedValue], tolerance: TimeInterval) -> [Pairing] {
-        var unused = Set(references.indices)
+        var evenIndex = 0
+        var referenceIndex = 0
         var output: [Pairing] = []
-        for item in even {
-            let closest = unused.min { left, right in
-                abs(references[left].timestamp.timeIntervalSince(item.timestamp)) <
-                abs(references[right].timestamp.timeIntervalSince(item.timestamp))
+        while evenIndex < even.count && referenceIndex < references.count {
+            let evenValue = even[evenIndex]
+            let reference = references[referenceIndex]
+            let delta = reference.timestamp.timeIntervalSince(evenValue.timestamp)
+            if abs(delta) <= tolerance {
+                output.append(Pairing(even: evenValue, reference: reference))
+                evenIndex += 1
+                referenceIndex += 1
+            } else if delta < 0 {
+                referenceIndex += 1
+            } else {
+                evenIndex += 1
             }
-            guard let closest,
-                  abs(references[closest].timestamp.timeIntervalSince(item.timestamp)) <= tolerance else { continue }
-            unused.remove(closest)
-            output.append(Pairing(even: item, reference: references[closest]))
         }
         return output
     }
@@ -183,12 +233,39 @@ public struct AppleWatchStudyEngine: Sendable {
     }
 
     private struct TimedValue: Sendable {
+        let id: String
         let timestamp: Date
         let value: Double
+
+        static func order(_ left: TimedValue, _ right: TimedValue) -> Bool {
+            left.timestamp == right.timestamp ? left.id < right.id : left.timestamp < right.timestamp
+        }
     }
 
     private struct Pairing: Sendable {
         let even: TimedValue
         let reference: TimedValue
+    }
+}
+
+// Compatibility names for the current Apple Watch UI. The domain engine itself is source-neutral.
+public typealias AppleWatchStudyMetric = SourceCoverageMetric
+public typealias AppleWatchReferenceSample = SourceCoverageReferenceSample
+public typealias AppleWatchMetricStudyResult = SourceCoverageMetricResult
+public typealias AppleWatchStudyReport = SourceCoverageReport
+
+public struct AppleWatchStudyEngine: Sendable {
+    private let coverage: SourceCoverageEngine
+
+    public init(coverage: SourceCoverageEngine = .init()) {
+        self.coverage = coverage
+    }
+
+    public func study(
+        measurements: [HealthMeasurement],
+        references: [AppleWatchReferenceSample],
+        interval: DateInterval
+    ) -> AppleWatchStudyReport {
+        coverage.analyze(measurements: measurements, references: references, interval: interval)
     }
 }

@@ -177,30 +177,35 @@ struct AppleWatchStudyView: View {
     @ViewBuilder
     private func reportSection(_ report: AppleWatchStudyReport) -> some View {
         Section("Risultato locale") {
-            Text("Il confronto segnala compatibilita temporale e numerica; non abilita automaticamente alcuna nuova importazione.")
+            Text("Questo è uno studio locale: non abilita automaticamente importazioni.")
                 .font(.footnote).foregroundStyle(.secondary)
             ForEach(report.results) { result in
                 DisclosureGroup(result.metric.title) {
                     LabeledContent("Record Even nel periodo", value: "\(result.evenRecordsInRange)")
                     LabeledContent("Record confrontabili", value: "\(result.comparableEvenRecords)")
-                    LabeledContent("Record Apple Watch", value: "\(result.appleWatchRecords)")
+                    LabeledContent("Record Even esclusi", value: "\(result.excludedEvenRecords)")
+                    LabeledContent("Conflitti nel file Even", value: "\(result.conflictingEvenRecords)")
+                    LabeledContent("Record Apple Watch", value: "\(result.referenceRecords)")
                     LabeledContent("Corrispondenze vicine", value: "\(result.matchedRecords)")
                     LabeledContent("Even senza confronto", value: "\(result.unmatchedEvenRecords)")
+                    LabeledContent("Record Apple Watch senza corrispondenza", value: "\(result.unmatchedReferenceRecords)")
                     if let coverage = result.coverage {
                         LabeledContent("Copertura del confronto", value: coverage.formatted(.percent.precision(.fractionLength(0))))
                     }
                     if let difference = result.medianAbsoluteDifference {
                         LabeledContent("Differenza assoluta mediana", value: difference.formatted(.number.precision(.fractionLength(1))))
-                    } else if result.metric == .steps || result.metric == .activeEnergy {
+                    } else if result.contract.comparisonMode == .temporalPresence {
                         Text("Mostra la copertura temporale, non una differenza numerica: l'intervallo del record Even non e ancora documentato.")
                             .font(.footnote).foregroundStyle(.secondary)
                     }
                     if result.metric == .hrv {
-                        Text("Anche una buona correlazione non dimostra che l'HRV Even sia SDNN: resta escluso dall'importazione.")
+                        Text("La metrica HRV Even non è stata confermata come SDNN: il report mostra solo presenza temporale e resta esclusa dall'importazione.")
                             .font(.footnote).foregroundStyle(.secondary)
                     }
                 }
             }
+            Text("Questo confronto non identifica lacune da riempire né modifica i dati in Apple Salute.")
+                .font(.footnote).foregroundStyle(.secondary)
         }
     }
 
