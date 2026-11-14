@@ -70,6 +70,28 @@ private func withArchive(_ files: [String: String], body: (URL) throws -> Void) 
     }
 }
 
+@Test func parserRetainsReportedUnitsAndEndTimestampsAsPreviewEvidence() throws {
+    let timestamp = "2026-11-14T10:00:00Z"
+    let end = "2026-11-14T10:10:00Z"
+    let steps = "timestamp,value,source,unit,end_ts\n\(timestamp),42,R1,count,\(end)\n"
+
+    try withArchive(["steps.csv": steps]) { url in
+        let dataset = try EvenDataParser().parseArchive(at: url)
+        let sample = try #require(dataset.measurements.first)
+        let preview = ImportPreviewSummary(
+            measurements: dataset.measurements,
+            sleepPlan: SleepImportPlanner().plan(dataset.measurements, imported: [])
+        )
+        let summary = try #require(preview.categories.first { $0.kind == .steps })
+
+        #expect(sample.originalUnit == "count")
+        #expect(sample.intervalEnd == EvenDataParser.parseDate(end))
+        #expect(summary.reportedUnits == ["count"])
+        #expect(summary.recordsWithReportedEnd == 1)
+        #expect(sample.validation == .ambiguousSemantics)
+    }
+}
+
 @Test func malformedSleepIsExcludedWithWarning() throws {
     let files = ["sleep.csv": "timestamp,start_ts,end_ts,total_time,wake_time,rem_time,light_time,deep_time,stages,source,tz,body_temp_delta\n2026-01-01T00:00:00Z,2026-01-01T00:00:00Z,2026-01-01T00:01:00Z,60,0,0,60,0,\"[{\"\"type\"\":2,\"\"half_minutes\"\":1}]\",R1,+00:00,\n"]
     try withArchive(files) { url in

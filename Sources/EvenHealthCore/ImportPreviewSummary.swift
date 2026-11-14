@@ -12,6 +12,8 @@ public struct CategoryPreviewSummary: Sendable {
     public let periodStart: Date?
     public let periodEnd: Date?
     public let sources: [String: Int]
+    public let reportedUnits: [String]
+    public let recordsWithReportedEnd: Int
 }
 
 public struct ImportPreviewSummary: Sendable {
@@ -32,7 +34,9 @@ public struct ImportPreviewSummary: Sendable {
                 conflicts: items.filter { $0.validation == .conflict }.count + crossArchiveConflicts,
                 periodStart: items.map(\.timestamp).min(),
                 periodEnd: items.map { $0.intervalEnd ?? $0.timestamp }.max(),
-                sources: Dictionary(items.map { ($0.source, 1) }, uniquingKeysWith: +)
+                sources: Dictionary(items.map { ($0.source, 1) }, uniquingKeysWith: +),
+                reportedUnits: Array(Set(items.compactMap(\.originalUnit))).sorted(),
+                recordsWithReportedEnd: items.filter { $0.intervalEnd != nil }.count
             )
         }
     }

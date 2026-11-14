@@ -248,6 +248,12 @@ private struct CategorySummaryRow: View {
                     .map { "\($0.key): \($0.value)" }.joined(separator: " · ")
                 LabeledContent("Sorgenti", value: sourceText)
             }
+            if !summary.reportedUnits.isEmpty {
+                LabeledContent("Unità riportate", value: summary.reportedUnits.joined(separator: " · "))
+            }
+            if summary.recordsWithReportedEnd > 0 {
+                LabeledContent("Record con termine dichiarato", value: "\(summary.recordsWithReportedEnd) / \(summary.records)")
+            }
             if let readinessDetail {
                 Text(readinessDetail)
                     .font(.footnote).foregroundStyle(.secondary)

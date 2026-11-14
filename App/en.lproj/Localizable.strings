@@ -60,6 +60,8 @@
 "Periodo nel fuso iPhone" = "Period in iPhone time zone";
 "Periodo UTC" = "UTC period";
 "Sorgenti" = "Sources";
+"Unità riportate" = "Reported units";
+"Record con termine dichiarato" = "Records with reported end time";
 "Scrittura esclusa: unità, intervallo o significato dei valori non verificati." = "Writing excluded: unit, interval, or value meaning is not verified.";
 "Passi in sola lettura: l'export non documenta se ogni riga sia un delta o un totale cumulativo, né il suo intervallo." = "Steps are read-only: the export does not document whether each row is a delta or a cumulative total, or its interval.";
 "Calorie in sola lettura: totale, attive, a riposo e la finestra temporale devono essere documentati prima del mapping." = "Calories are read-only: total, active, resting, and the time window must be documented before mapping.";

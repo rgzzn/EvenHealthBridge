@@ -119,6 +119,10 @@ public struct EvenDataParser: Sendable {
                     let source = row["source"] ?? "unknown"
                     let statistic = row["ty"]
                     let value = row["value"].flatMap { Decimal(string: $0, locale: Locale(identifier: "en_US_POSIX")) }
+                    let originalUnit = ["unit", "units"].lazy.compactMap { key -> String? in
+                        guard let value = row[key]?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty else { return nil }
+                        return value
+                    }.first
                     let components: [String: Decimal] = kind == .calories
                         ? Dictionary(uniqueKeysWithValues: ["resting", "active"].compactMap { key in
                             row[key].flatMap { Decimal(string: $0, locale: Locale(identifier: "en_US_POSIX")) }.map { (key, $0) }
@@ -138,7 +142,7 @@ public struct EvenDataParser: Sendable {
                     guard measurements.count < maxMeasurements else {
                         throw EvenParserError.tooManyMeasurements(limit: maxMeasurements)
                     }
-                    measurements.append(.init(id: id, kind: kind, timestamp: date, originalTimestamp: time, source: source, value: value, components: components, originalUnit: nil, canonicalUnit: nil, statistic: statistic, intervalEnd: end, sleepStage: nil, sessionEnd: nil, provenance: filename, validation: validation))
+                    measurements.append(.init(id: id, kind: kind, timestamp: date, originalTimestamp: time, source: source, value: value, components: components, originalUnit: originalUnit, canonicalUnit: nil, statistic: statistic, intervalEnd: end, sleepStage: nil, sessionEnd: nil, provenance: filename, validation: validation))
                 }
             } catch is CSVError {
                 let format = String(localized: "%@: intestazione o codifica CSV non valida")
