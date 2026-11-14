@@ -248,8 +248,8 @@ private struct CategorySummaryRow: View {
                     .map { "\($0.key): \($0.value)" }.joined(separator: " · ")
                 LabeledContent("Sorgenti", value: sourceText)
             }
-            if summary.kind != .sleep {
-                Text("Scrittura esclusa: unità, intervallo o significato dei valori non verificati.")
+            if let readinessDetail {
+                Text(readinessDetail)
                     .font(.footnote).foregroundStyle(.secondary)
             }
         } label: {
@@ -258,6 +258,25 @@ private struct CategorySummaryRow: View {
                 Text(String(format: String(localized: "%@ misurazioni · %@ nuove · %@ duplicate · %@ escluse"), locale: .current, String(summary.records), String(summary.new), String(summary.duplicates), String(summary.excluded)))
                     .font(.caption).foregroundStyle(.secondary)
             }
+        }
+    }
+
+    private var readinessDetail: String? {
+        switch HealthImportReadiness.current(for: summary.kind) {
+        case .availableForValidatedSleep:
+            nil
+        case .requiresStepIntervalAndSemantics:
+            String(localized: "Passi in sola lettura: l'export non documenta se ogni riga sia un delta o un totale cumulativo, né il suo intervallo.")
+        case .requiresCalorieSemanticsAndInterval:
+            String(localized: "Calorie in sola lettura: totale, attive, a riposo e la finestra temporale devono essere documentati prima del mapping.")
+        case .requiresHeartRateAggregationInterval:
+            String(localized: "Frequenza cardiaca in sola lettura: l'intervallo di aggregazione di avg, min e max non è documentato.")
+        case .requiresConfirmedHRVMetric:
+            String(localized: "HRV in sola lettura: il valore Even non è stato confermato come SDNN.")
+        case .requiresOxygenSemanticsAndInterval:
+            String(localized: "Ossigenazione in sola lettura: unità e metodo di campionamento o aggregazione richiedono conferma.")
+        case .requiresCompatibleTemperatureSemantics:
+            String(localized: "Temperatura cutanea in sola lettura: una deviazione dalla baseline non è ancora compatibile con un tipo HealthKit.")
         }
     }
 }

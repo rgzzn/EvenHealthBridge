@@ -27,6 +27,8 @@ The preview shows, for each category, analysed, validated, new, previously impor
 
 Steps, calories, heart rate, HRV, SpO₂, and temperature appear in the preview but are excluded from writing. The current export does not yet provide the units, intervals, or statistical meaning required for a safe mapping. In particular, Even does not specify whether HRV is SDNN, and min/max/avg are not three independent samples. Enabling another category in the future requires reliable documentation and dedicated testing.
 
+The preview shows the category-specific missing evidence instead of a generic warning: step delta-versus-cumulative semantics and interval; calorie component semantics and window; heart-rate aggregation interval; HRV metric identity; oxygen unit and aggregation method; and a compatible temperature meaning. This register is not a user override: only validated sleep currently permits automatic Health writes.
+
 ## Apple Watch study
 
 After analysing a ZIP archive, open the **Study** tab and select the comparison start and end dates. **Compare with Apple Watch** requests read-only HealthKit access to steps, active energy, heart rate, HRV, and oxygen saturation at that time. It identifies Watch samples primarily from the HealthKit source revision's Apple Watch product type, with a narrow `Apple Watch` name fallback only for older records that have no product type. It never requests write access, changes Apple Watch samples, or persists the values it reads; the report exists only in memory while the screen is open.
