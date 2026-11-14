@@ -1,18 +1,18 @@
-# Analisi dell'export locale (8 novembre 2026)
+# Analisi degli export locali (8 e 13 novembre 2026)
 
-Analisi strutturale di `Even_health_data_20261108.zip`. L'archivio contiene dati sanitari reali e resta escluso da Git. Questo documento riporta solo schemi e statistiche aggregate.
+Analisi strutturale di `Even_health_data_20261108.zip`, verificata contro `Even_health_data_20261113.zip`. Gli archivi contengono dati sanitari reali e restano esclusi da Git. Questo documento riporta solo schemi e statistiche aggregate.
 
-| CSV | Righe | Campi | Osservazioni |
-| --- | ---: | --- | --- |
-| steps | 674 | timestamp, value, source | 337 istanti, due sorgenti per istante; valori 0–548, 290 zeri |
-| calories | 674 | timestamp, value, resting, active, source | 337 istanti; resting/active presenti nelle 337 righe R1, assenti in ring1Notify; value 0–64 |
-| heart_rate | 594 | timestamp, value, source, ty | 99 istanti × min/max/avg × due sorgenti; 48–139 |
-| hrv | 624 | timestamp, value, source, ty | 104 istanti × min/max/avg × due sorgenti; 23–96, metrica non dichiarata |
-| blood_oxygen | 552 | timestamp, value, source, ty | 92 istanti × min/max/avg × due sorgenti; 89–99 |
-| sleep | 14 | timestamp, start_ts, end_ts, total_time, wake_time, rem_time, light_time, deep_time, stages, source, tz, body_temp_delta | 7 sessioni × due sorgenti; codici stage 0/1/2/3, significato non documentato; body_temp_delta presente solo in metà righe, sempre zero |
-| skin_temperature | 11 | timestamp, value, source | 4 R1 e 7 ring1Notify; valore 0–35, unità e significato non dichiarati |
+| CSV | Righe 8 nov | Righe 13 nov | Campi | Osservazioni |
+| --- | ---: | ---: | --- | --- |
+| steps | 674 | 1446 | timestamp, value, source | Due sorgenti per istante: R1 e ring1Notify; intervallo dell'aggregato non dichiarato |
+| calories | 674 | 1446 | timestamp, value, resting, active, source | R1 e ring1Notify; resting/active non sono presenti in tutte le righe; finestra temporale non dichiarata |
+| heart_rate | 594 | 1188 | timestamp, value, source, ty | R1 e ring1Notify; gruppi min/max/avg, senza finestra statistica dichiarata |
+| hrv | 624 | 1236 | timestamp, value, source, ty | R1 e ring1Notify; gruppi min/max/avg, metrica non dichiarata |
+| blood_oxygen | 552 | 1122 | timestamp, value, source, ty | R1 e ring1Notify; gruppi min/max/avg, metodo di campionamento non dichiarato |
+| sleep | 14 | 29 | timestamp, start_ts, end_ts, total_time, wake_time, rem_time, light_time, deep_time, stages, source, tz, body_temp_delta | Codici stage 0/1/2/3 e intervalli completi; un record aggiuntivo nel secondo export |
+| skin_temperature | 11 | 23 | timestamp, value, source | R1 e ring1Notify; unità e significato non dichiarati |
 
-I timestamp sono stringhe ISO 8601 con offset. `steps` non dichiara la durata dell'aggregato: non si può costruire un intervallo HealthKit affidabile. Le serie `min/max/avg` non dichiarano né finestra statistica né istante dei singoli campioni: non vanno trasformate in tre campioni HealthKit. HRV non specifica SDNN o RMSSD. Calorie `resting` e `active` richiedono conferma della definizione e della finestra; `value` non va interpretato come un terzo tipo di energia. La temperatura può essere assoluta o differenziale e gli zeri possono essere sentinelle.
+I timestamp sono stringhe ISO 8601 con offset. Il secondo export ha mantenuto esattamente le stesse intestazioni, le due sorgenti e le categorie statistiche; questa stabilità di schema non dimostra tuttavia le semantiche mancanti. `steps` non dichiara la durata dell'aggregato: non si può costruire un intervallo HealthKit affidabile. Le serie `min/max/avg` non dichiarano né finestra statistica né istante dei singoli campioni: non vanno trasformate in tre campioni HealthKit. HRV non specifica SDNN o RMSSD. Calorie `resting` e `active` richiedono conferma della definizione e della finestra; `value` non va interpretato come un terzo tipo di energia. La temperatura può essere assoluta o differenziale e gli zeri possono essere sentinelle.
 
 Verifica interna del sonno: per ognuna delle 7 sessioni R1 la somma `half_minutes × 30` di ciascun codice coincide esattamente con l'aggregato omonimo: 0 = veglia, 1 = REM, 2 = leggero, 3 = profondo. La somma di tutte le fasi coincide esattamente con `end_ts - start_ts`; `total_time` esclude la veglia. Questo supporta il mapping delle fasi, purché le medesime uguaglianze siano verificate a ogni importazione e non vi siano fasi sovrapposte o codici ignoti.
 
