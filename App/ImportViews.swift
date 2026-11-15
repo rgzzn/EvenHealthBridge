@@ -234,8 +234,12 @@ private struct CategorySummaryRow: View {
         DisclosureGroup {
             LabeledContent("Misurazioni analizzate", value: "\(summary.records)")
             LabeledContent("Validati nello ZIP", value: "\(summary.eligible)")
-            LabeledContent("Nuovi in Salute", value: "\(summary.new)")
-            LabeledContent("Già importati", value: "\(summary.alreadyImported)")
+            if isAutomaticallyImportable {
+                LabeledContent("Nuovi in Salute", value: "\(summary.new)")
+                LabeledContent("Già importati", value: "\(summary.alreadyImported)")
+            } else {
+                LabeledContent("Stato importazione", value: "Solo analisi")
+            }
             LabeledContent("Duplicati nello ZIP", value: "\(summary.duplicates)")
             LabeledContent("Esclusi", value: "\(summary.excluded)")
             LabeledContent("Conflitti", value: "\(summary.conflicts)")
@@ -264,10 +268,23 @@ private struct CategorySummaryRow: View {
         } label: {
             VStack(alignment: .leading, spacing: 4) {
                 Text(title).font(.headline)
-                Text(String(format: String(localized: "%@ misurazioni · %@ nuove · %@ duplicate · %@ escluse"), locale: .current, String(summary.records), String(summary.new), String(summary.duplicates), String(summary.excluded)))
+                Text(summaryLine)
                     .font(.caption).foregroundStyle(.secondary)
             }
         }
+    }
+
+    private var isAutomaticallyImportable: Bool {
+        HealthImportReadiness.current(for: summary.kind) == .availableForValidatedSleep
+    }
+
+    private var summaryLine: String {
+        if isAutomaticallyImportable {
+            let format = String(localized: "%@ misurazioni · %@ nuove · %@ duplicate · %@ escluse")
+            return String(format: format, locale: .current, String(summary.records), String(summary.new), String(summary.duplicates), String(summary.excluded))
+        }
+        let format = String(localized: "%@ misurazioni · sola lettura · %@ duplicate · %@ escluse")
+        return String(format: format, locale: .current, String(summary.records), String(summary.duplicates), String(summary.excluded))
     }
 
     private var readinessDetail: String? {
