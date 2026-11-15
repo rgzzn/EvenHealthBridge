@@ -76,12 +76,14 @@
 "%@ misurazioni · %@ nuove · %@ duplicate · %@ escluse" = "%1$@ measurements · %2$@ new · %3$@ duplicates · %4$@ excluded";
 "%@ misurazioni · sola lettura · %@ duplicate · %@ escluse" = "%1$@ measurements · read only · %2$@ duplicates · %3$@ excluded";
 "Veglia" = "Awake";
+"REM" = "REM";
 "Sonno leggero" = "Core sleep";
 "Sonno profondo" = "Deep sleep";
 "Fase sconosciuta" = "Unknown stage";
 "%@ min %@ s" = "%1$@ min %2$@ sec";
 "Sorgente: %@" = "Source: %@";
 "Nessuna importazione" = "No imports";
+"Nessuna" = "None";
 "Le analisi registrate compariranno qui." = "Recorded analyses appear here.";
 "Importazioni" = "Imports";
 "Cronologia precedente" = "Previous history";
@@ -163,6 +165,7 @@
 "Apple Salute non è disponibile su questo dispositivo." = "Apple Health is unavailable on this device.";
 "Autorizzazione alla scrittura del sonno non concessa." = "Sleep write authorization was not granted.";
 "Campione di sonno non valido." = "Invalid sleep sample.";
+"Campione di sonno non valido" = "Invalid sleep sample";
 "Impossibile leggere il file selezionato." = "Unable to read the selected file.";
 "In Apple Salute esiste già un campione con lo stesso identificativo ma dati diversi. Importazione interrotta." = "Apple Health already contains a sample with the same identifier but different data. Import stopped.";
 "Annullata" = "Cancelled";
