@@ -395,7 +395,9 @@ private struct StorageUnavailableView: View {
 
 struct RootView: View {
     @State private var coordinator = ImportCoordinator()
+    @State private var intentRouter = EvenHealthBridgeIntentRouter.shared
     @State private var analysisTask: Task<Void, Never>?
+    @State private var handledIntentRouteID: UUID?
     @State private var selectedTab = 0
 
     var body: some View {
@@ -432,5 +434,15 @@ struct RootView: View {
                 await coordinator.analyze(url)
             }
         }
+        .onAppear(perform: applyPendingIntentDestination)
+        .onChange(of: intentRouter.pendingRoute) { _, _ in
+            applyPendingIntentDestination()
+        }
+    }
+
+    private func applyPendingIntentDestination() {
+        guard let route = intentRouter.pendingRoute, route.id != handledIntentRouteID else { return }
+        selectedTab = route.destination.tabIndex
+        handledIntentRouteID = route.id
     }
 }

@@ -15,6 +15,10 @@ If the local SwiftData store cannot be opened, the app displays an error and let
 
 The dashboard shows the Apple Health sleep-write status, imported categories, saved-stage count and date range, the latest sync, and the latest analysis. The ZIP button is at the top of the screen and remains reachable with very large text. Permission status refreshes when the app becomes active and after an import finishes.
 
+## Local automation
+
+The app exposes two local App Shortcuts: **Import Even data** opens the ZIP-import workflow, and **Analyze Even data** opens the Apple Watch study. They only navigate into the app: neither reads a HealthKit record nor imports anything until you explicitly continue in the interface.
+
 ## Data and limitations
 
 The parser reads all seven CSV files; schema details are in [Docs/DatasetAnalysis.md](Docs/DatasetAnalysis.md). For sleep it verifies that stage durations agree with session aggregates and the session interval. Stage codes are: 0 awake, 1 REM, 2 core/light, and 3 deep. Overlapping sessions are excluded; only validated, conflict-free stages are eligible for writing.

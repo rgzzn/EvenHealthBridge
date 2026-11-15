@@ -183,6 +183,16 @@
 "Archivio locale non disponibile" = "Local store unavailable";
 "L'app non può verificare i campioni già importati. Riprova quando lo spazio e l'archivio del dispositivo sono disponibili." = "The app cannot verify previously imported samples. Try again when device storage and the local store are available.";
 "Riprova" = "Try again";
+"Importa dati Even" = "Import Even data";
+"Apri l'app per selezionare un archivio ZIP Even." = "Open the app to select an Even ZIP archive.";
+"Analizza dati Even" = "Analyze Even data";
+"Apri lo studio locale dei dati Even e Apple Watch." = "Open the local Even and Apple Watch data study.";
+"Importa dati" = "Import data";
+"Analizza dati" = "Analyze data";
+"Importa dati Even in \(.applicationName)" = "Import Even data in \(.applicationName)";
+"Apri importazione in \(.applicationName)" = "Open import in \(.applicationName)";
+"Analizza dati Even in \(.applicationName)" = "Analyze Even data in \(.applicationName)";
+"Apri studio in \(.applicationName)" = "Open study in \(.applicationName)";
 "L'archivio contiene più di %@ misurazioni. Importazione interrotta per proteggere la memoria del dispositivo." = "The archive contains more than %1$@ measurements. Import stopped to protect device memory.";
 "%@: record CSV %@ scartato" = "%1$@: CSV record %2$@ discarded";
 "sleep.csv: sessione non valida nel record %@" = "sleep.csv: invalid session in record %1$@";

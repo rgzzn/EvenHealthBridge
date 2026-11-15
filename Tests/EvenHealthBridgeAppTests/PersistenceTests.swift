@@ -6,6 +6,22 @@ import EvenHealthCore
 
 private final class SyntheticArchiveMarker {}
 
+@MainActor @Test func appIntentsRouteToTheirFocusedWorkflow() async throws {
+    let router = EvenHealthBridgeIntentRouter.shared
+    router.pendingRoute = nil
+    defer { router.pendingRoute = nil }
+
+    _ = try await ImportEvenDataIntent().perform()
+    #expect(ImportEvenDataIntent.targetDestination == .importArchive)
+    #expect(router.pendingRoute?.destination == .importArchive)
+    #expect(EvenHealthBridgeDestination.importArchive.tabIndex == 0)
+
+    _ = try await StudyEvenDataIntent().perform()
+    #expect(StudyEvenDataIntent.targetDestination == .appleWatchStudy)
+    #expect(router.pendingRoute?.destination == .appleWatchStudy)
+    #expect(EvenHealthBridgeDestination.appleWatchStudy.tabIndex == 1)
+}
+
 @MainActor @Test func coordinatorAnalyzesSyntheticZIPOnIOS() async throws {
     let archive = try #require(Bundle(for: SyntheticArchiveMarker.self).url(forResource: "SyntheticSleep", withExtension: "zip"))
     let coordinator = ImportCoordinator()
