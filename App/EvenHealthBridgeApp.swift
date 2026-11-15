@@ -115,7 +115,8 @@ final class StoredSample {
     }
 
     func alreadySaved(_ item: HealthMeasurement) async throws -> Bool {
-        guard let type = HKObjectType.categoryType(forIdentifier: .sleepAnalysis),
+        guard SleepWriteEligibility.accepts(item),
+              let type = HKObjectType.categoryType(forIdentifier: .sleepAnalysis),
               let end = item.intervalEnd else { throw ImportFailure.invalidSample }
         let ownSource = HKQuery.predicateForObjects(from: HKSource.default())
         let identifier = HKQuery.predicateForObjects(withMetadataKey: HKMetadataKeySyncIdentifier, allowedValues: [item.id])
@@ -134,7 +135,8 @@ final class StoredSample {
     }
 
     func save(_ item: HealthMeasurement) async throws {
-        guard let end = item.intervalEnd,
+        guard SleepWriteEligibility.accepts(item),
+              let end = item.intervalEnd,
               let type = HKObjectType.categoryType(forIdentifier: .sleepAnalysis) else { throw ImportFailure.invalidSample }
         let value = try sleepValue(for: item)
         let sample = HKCategorySample(type: type, value: value.rawValue, start: item.timestamp, end: end, metadata: [HKMetadataKeySyncIdentifier: item.id, HKMetadataKeySyncVersion: 1, "EvenHealthBridgeSource": item.source])
@@ -163,7 +165,8 @@ final class StoredSample {
     }
 
     func record(_ item: HealthMeasurement) throws {
-        guard let end = item.intervalEnd, let stage = item.sleepStage,
+        guard SleepWriteEligibility.accepts(item),
+              let end = item.intervalEnd, let stage = item.sleepStage,
               let sessionStart = EvenDataParser.parseDate(item.originalTimestamp),
               let sessionEnd = item.sessionEnd else { throw ImportFailure.invalidSample }
         context.insert(StoredSample(stableID: item.id, category: "sleep", start: item.timestamp, end: end, sessionStart: sessionStart, sessionEnd: sessionEnd, stage: stage))

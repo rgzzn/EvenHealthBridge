@@ -24,11 +24,28 @@ public struct SleepImportPlan: Sendable {
     public let conflicts: Int
 }
 
+/// The last semantic gate before a record may reach a HealthKit sleep writer.
+/// Keeping this outside the UI and planner makes accidental future call sites fail closed.
+public enum SleepWriteEligibility {
+    public static func accepts(_ measurement: HealthMeasurement) -> Bool {
+        guard measurement.kind == .sleep,
+              measurement.validation == .eligible,
+              !measurement.id.isEmpty,
+              let stage = measurement.sleepStage,
+              (0...3).contains(stage),
+              let end = measurement.intervalEnd,
+              end > measurement.timestamp,
+              let sessionEnd = measurement.sessionEnd,
+              sessionEnd >= end else { return false }
+        return EvenDataParser.parseDate(measurement.originalTimestamp) != nil
+    }
+}
+
 public struct SleepImportPlanner: Sendable {
     public init() {}
 
     public func plan(_ measurements: [HealthMeasurement], imported: [ImportedSleepSample]) -> SleepImportPlan {
-        let candidates = measurements.filter { $0.kind == .sleep && $0.validation == .eligible }
+        let candidates = measurements.filter(SleepWriteEligibility.accepts)
         let existing = Dictionary(imported.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         var newSamples: [HealthMeasurement] = []
         var duplicates = 0

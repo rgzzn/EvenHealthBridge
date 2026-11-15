@@ -5,6 +5,7 @@ public enum ZIPImportError: Error {
     case invalidArchive
     case unsafeEntry
     case archiveTooLarge
+    case tooManyEntries
     case duplicateFile(String)
 }
 
@@ -12,7 +13,11 @@ public struct ZIPExtractionService: Sendable {
     public let maxArchiveBytes: Int64 = 50_000_000
     public let maxExpandedBytes: Int64 = 100_000_000
     public let maxEntryBytes: Int64 = 30_000_000
-    public init() {}
+    public let maxEntries: Int
+
+    public init(maxEntries: Int = 512) {
+        self.maxEntries = max(1, maxEntries)
+    }
 
     /// Compatibility API for callers that need every CSV in memory.
     public func readCSV(at url: URL) throws -> [String: Data] {
@@ -32,8 +37,11 @@ public struct ZIPExtractionService: Sendable {
         let allowed: Set<String> = ["steps.csv", "calories.csv", "heart_rate.csv", "hrv.csv", "blood_oxygen.csv", "sleep.csv", "skin_temperature.csv"]
         var seen = Set<String>()
         var expanded: UInt64 = 0
+        var entryCount = 0
         for entry in archive {
             try Task.checkCancellation()
+            entryCount += 1
+            guard entryCount <= maxEntries else { throw ZIPImportError.tooManyEntries }
             let parts = entry.path.split(separator: "/", omittingEmptySubsequences: false)
             guard !entry.path.hasPrefix("/"), !parts.contains(".."), !parts.contains("."), !entry.path.contains("\\") else { throw ZIPImportError.unsafeEntry }
             guard entry.type == .file, let filename = parts.last.map(String.init), allowed.contains(filename) else { continue }

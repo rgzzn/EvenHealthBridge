@@ -42,6 +42,32 @@ private func sample(_ id: String, start: TimeInterval, end: TimeInterval) -> Hea
     HealthMeasurement(id: id, kind: .sleep, timestamp: Date(timeIntervalSince1970: start), originalTimestamp: "1970-01-01T00:00:00Z", source: "R1", value: nil, components: [:], originalUnit: "half_minutes", canonicalUnit: "seconds", statistic: nil, intervalEnd: Date(timeIntervalSince1970: end), sleepStage: 2, sessionEnd: Date(timeIntervalSince1970: 120), provenance: "sleep.csv", validation: .eligible)
 }
 
+@Test func sleepWriteEligibilityRejectsAnythingButAValidatedSleepStage() {
+    let valid = sample("valid", start: 0, end: 60)
+    #expect(SleepWriteEligibility.accepts(valid))
+
+    let ambiguous = HealthMeasurement(id: valid.id, kind: .sleep, timestamp: valid.timestamp,
+        originalTimestamp: valid.originalTimestamp, source: valid.source, value: valid.value,
+        components: valid.components, originalUnit: valid.originalUnit, canonicalUnit: valid.canonicalUnit,
+        statistic: valid.statistic, intervalEnd: valid.intervalEnd, sleepStage: valid.sleepStage,
+        sessionEnd: valid.sessionEnd, provenance: valid.provenance, validation: .ambiguousSemantics)
+    #expect(!SleepWriteEligibility.accepts(ambiguous))
+
+    let nonSleep = HealthMeasurement(id: valid.id, kind: .heartRate, timestamp: valid.timestamp,
+        originalTimestamp: valid.originalTimestamp, source: valid.source, value: 60,
+        components: [:], originalUnit: nil, canonicalUnit: nil, statistic: "avg",
+        intervalEnd: valid.intervalEnd, sleepStage: valid.sleepStage, sessionEnd: valid.sessionEnd,
+        provenance: "heart_rate.csv", validation: .eligible)
+    #expect(!SleepWriteEligibility.accepts(nonSleep))
+
+    let invalidStage = HealthMeasurement(id: valid.id, kind: .sleep, timestamp: valid.timestamp,
+        originalTimestamp: valid.originalTimestamp, source: valid.source, value: valid.value,
+        components: valid.components, originalUnit: valid.originalUnit, canonicalUnit: valid.canonicalUnit,
+        statistic: valid.statistic, intervalEnd: valid.intervalEnd, sleepStage: 4,
+        sessionEnd: valid.sessionEnd, provenance: valid.provenance, validation: .eligible)
+    #expect(!SleepWriteEligibility.accepts(invalidStage))
+}
+
 @MainActor @Test func executorSecondImportWritesZero() async throws {
     let writer = FakeWriter()
     let repository = FakeRepository()

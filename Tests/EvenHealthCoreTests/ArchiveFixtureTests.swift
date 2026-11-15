@@ -112,6 +112,18 @@ private func withArchive(_ files: [String: String], body: (URL) throws -> Void) 
     }
 }
 
+@Test func archiveWithTooManyEntriesIsRejectedBeforeProcessingCSV() throws {
+    try withArchive([
+        "one.txt": "ignored",
+        "two.txt": "ignored",
+        "steps.csv": "timestamp,value,source\n2026-01-01T00:00:00Z,1,R1\n"
+    ]) { url in
+        #expect(throws: ZIPImportError.self) {
+            try ZIPExtractionService(maxEntries: 2).readCSV(at: url)
+        }
+    }
+}
+
 @Test func parserRetainsReportedUnitsAndEndTimestampsAsPreviewEvidence() throws {
     let timestamp = "2026-11-14T10:00:00Z"
     let end = "2026-11-14T10:10:00Z"
