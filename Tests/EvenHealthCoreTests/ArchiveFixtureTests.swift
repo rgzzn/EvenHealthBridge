@@ -56,6 +56,10 @@ private func withArchive(_ files: [String: String], body: (URL) throws -> Void) 
     #expect(throws: SharedArchiveInboxError.self) { try store.receive(from: largeArchive) }
 }
 
+@Test func sharedArchiveDefaultLimitMatchesParserPreflightLimit() {
+    #expect(Int64(SharedArchiveFileStore.defaultMaximumArchiveBytes) == ZIPExtractionService().maxArchiveBytes)
+}
+
 @Test func sevenCSVFixtureAndValidatedSleep() throws {
     let time = "2026-10-25T02:30:00+02:00"
     let sleepStart = "2026-10-25T01:00:00+02:00"

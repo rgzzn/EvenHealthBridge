@@ -17,7 +17,9 @@ public enum SharedArchiveInboxError: LocalizedError, Sendable, Equatable {
 /// A narrow, local-only staging folder used by the Share extension and its host app.
 /// It holds at most one ZIP, never parses or uploads it, and removes the archive after use.
 public struct SharedArchiveFileStore: Sendable {
-    public static let defaultMaximumArchiveBytes = 512 * 1024 * 1024
+    /// Keep the staging limit aligned with the parser's preflight limit: an archive that
+    /// cannot be analysed must not first be copied into the app's protected inbox.
+    public static let defaultMaximumArchiveBytes = 50_000_000
 
     public let folder: URL
     public let maximumArchiveBytes: Int
