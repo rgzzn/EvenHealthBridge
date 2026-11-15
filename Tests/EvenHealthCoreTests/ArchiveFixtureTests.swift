@@ -206,6 +206,44 @@ private func withArchive(_ files: [String: String], body: (URL) throws -> Void) 
     }
 }
 
+@Test func laterExportRecognizesPreviouslyImportedSleepStagesByStableIdentity() throws {
+    let header = "timestamp,start_ts,end_ts,total_time,wake_time,rem_time,light_time,deep_time,stages,source,tz,body_temp_delta\n"
+    let stages = "\"[{\"\"type\"\":2,\"\"half_minutes\"\":2}]\""
+    let row = "2026-01-01T00:00:00Z,2026-01-01T00:00:00Z,2026-01-01T00:01:00Z,60,0,0,60,0,\(stages),R1,+00:00,\n"
+
+    try withArchive(["sleep.csv": header + row]) { firstArchive in
+        let first = try EvenDataParser().parseArchive(at: firstArchive)
+        let imported = first.measurements.compactMap { item -> ImportedSleepSample? in
+            guard item.kind == .sleep,
+                  let end = item.intervalEnd,
+                  let sessionEnd = item.sessionEnd,
+                  let sessionStart = EvenDataParser.parseDate(item.originalTimestamp),
+                  let stage = item.sleepStage else { return nil }
+            return ImportedSleepSample(
+                id: item.id,
+                start: item.timestamp,
+                end: end,
+                sessionStart: sessionStart,
+                sessionEnd: sessionEnd,
+                stage: stage
+            )
+        }
+
+        try withArchive([
+            "sleep.csv": header + row,
+            "steps.csv": "timestamp,value,source\n2026-01-02T00:00:00Z,100,R1\n"
+        ]) { laterArchive in
+            let later = try EvenDataParser().parseArchive(at: laterArchive)
+            let plan = SleepImportPlanner().plan(later.measurements, imported: imported)
+
+            #expect(first.archiveHash != later.archiveHash)
+            #expect(plan.newSamples.isEmpty)
+            #expect(plan.alreadyImported == 1)
+            #expect(plan.conflicts == 0)
+        }
+    }
+}
+
 @Test func implausiblyLongSleepSessionIsRejected() throws {
     let header = "timestamp,start_ts,end_ts,total_time,wake_time,rem_time,light_time,deep_time,stages,source,tz,body_temp_delta\n"
     let stages = "\"[{\"\"type\"\":2,\"\"half_minutes\"\":1500},{\"\"type\"\":2,\"\"half_minutes\"\":1500}]\""
