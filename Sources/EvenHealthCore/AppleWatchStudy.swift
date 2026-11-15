@@ -109,6 +109,55 @@ public enum SourceCoverageMetric: String, CaseIterable, Sendable, Identifiable {
     }
 }
 
+/// Source metadata observed while scanning a selected local HealthKit study window.
+/// It deliberately contains no measurement value or timestamp.
+public struct ReferenceSourceObservation: Sendable, Hashable {
+    public let identity: ReferenceSourceIdentity
+    public let metric: SourceCoverageMetric
+
+    public init(identity: ReferenceSourceIdentity, metric: SourceCoverageMetric) {
+        self.identity = identity
+        self.metric = metric
+    }
+}
+
+/// A temporary summary used to let the person choose a useful comparison source.
+/// This is not persisted and cannot change any HealthKit import decision.
+public struct ReferenceSourceAvailability: Sendable, Identifiable {
+    public let source: ReferenceSourceDefinition
+    public let sampleCounts: [SourceCoverageMetric: Int]
+
+    public var id: String { source.id }
+    public var metrics: [SourceCoverageMetric] {
+        SourceCoverageMetric.allCases.filter { sampleCounts[$0, default: 0] > 0 }
+    }
+    public var totalSamples: Int { sampleCounts.values.reduce(0, +) }
+
+    public init(source: ReferenceSourceDefinition, sampleCounts: [SourceCoverageMetric: Int]) {
+        self.source = source
+        self.sampleCounts = sampleCounts
+    }
+
+    public static func summarize(_ observations: [ReferenceSourceObservation]) -> [Self] {
+        var countsBySource: [ReferenceSourceDefinition: [SourceCoverageMetric: Int]] = [:]
+        for observation in observations {
+            let source: ReferenceSourceDefinition?
+            if ReferenceSourceDefinition.appleWatch.matches(observation.identity) {
+                source = .appleWatch
+            } else {
+                source = .discovered(observation.identity)
+            }
+            guard let source else { continue }
+            var metricCounts = countsBySource[source, default: [:]]
+            metricCounts[observation.metric, default: 0] += 1
+            countsBySource[source] = metricCounts
+        }
+        return countsBySource.map { Self(source: $0.key, sampleCounts: $0.value) }.sorted {
+            $0.source.displayName.localizedCaseInsensitiveCompare($1.source.displayName) == .orderedAscending
+        }
+    }
+}
+
 /// Health import remains disabled for every contract until its semantics and interval are verified.
 public enum SourceCoverageWriteStatus: String, Sendable {
     case blockedByUnknownInterval

@@ -35,28 +35,23 @@ struct HealthKitReferenceReader {
 
     /// Discovers only the source identity of samples in the selected study window. The caller
     /// keeps the result in view state and no HealthKit samples or source list are persisted.
-    func discoverSources(in interval: DateInterval) async throws -> [ReferenceSourceDefinition] {
+    func discoverSources(in interval: DateInterval) async throws -> [ReferenceSourceAvailability] {
         guard HKHealthStore.isHealthDataAvailable() else { throw AppleWatchStudyError.healthUnavailable }
         try await requestReadAuthorization()
 
-        var identities = Set<ReferenceSourceIdentity>()
+        var observations: [ReferenceSourceObservation] = []
         for metric in AppleWatchStudyMetric.allCases {
             for sample in try await samples(for: metric, in: interval) {
-                identities.insert(.init(
-                    productType: sample.sourceRevision.productType,
-                    sourceName: sample.sourceRevision.source.name
+                observations.append(.init(
+                    identity: .init(
+                        productType: sample.sourceRevision.productType,
+                        sourceName: sample.sourceRevision.source.name
+                    ),
+                    metric: metric
                 ))
             }
         }
-        let sources = identities.compactMap { identity -> ReferenceSourceDefinition? in
-            if ReferenceSourceDefinition.appleWatch.matches(identity) {
-                return .appleWatch
-            }
-            return .discovered(identity)
-        }
-        return Array(Set(sources)).sorted {
-            $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending
-        }
+        return ReferenceSourceAvailability.summarize(observations)
     }
 
     private func requestReadAuthorization() async throws {
@@ -135,7 +130,7 @@ struct AppleWatchStudyView: View {
     @State private var error: String?
     @State private var showImporter = false
     @State private var selectedReferenceSource = ReferenceSourceDefinition.appleWatch
-    @State private var discoveredReferenceSources: [ReferenceSourceDefinition] = []
+    @State private var discoveredReferenceSources: [ReferenceSourceAvailability] = []
 
     private var dataset: ParsedDataset? { coordinator.dataset }
 
@@ -248,6 +243,10 @@ struct AppleWatchStudyView: View {
             .disabled(selectedInterval == nil || isDiscoveringSources || isRunning)
             Text("Cerca solo le fonti presenti nell’intervallo selezionato. I nomi e i dati delle fonti restano sul dispositivo e non vengono salvati dall’app.")
                 .font(.footnote).foregroundStyle(.secondary)
+            if let availability = selectedSourceAvailability {
+                LabeledContent("Metriche trovate", value: availability.metrics.map(\.title).joined(separator: ", "))
+                LabeledContent("Campioni trovati", value: "\(availability.totalSamples)")
+            }
         }
     }
 
@@ -312,9 +311,13 @@ struct AppleWatchStudyView: View {
     }
 
     private var referenceSourceOptions: [ReferenceSourceDefinition] {
-        Array(Set([ReferenceSourceDefinition.appleWatch] + discoveredReferenceSources)).sorted {
+        Array(Set([ReferenceSourceDefinition.appleWatch] + discoveredReferenceSources.map(\.source))).sorted {
             $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending
         }
+    }
+
+    private var selectedSourceAvailability: ReferenceSourceAvailability? {
+        discoveredReferenceSources.first { $0.source == selectedReferenceSource }
     }
 
     private func discoverReferenceSources() async {

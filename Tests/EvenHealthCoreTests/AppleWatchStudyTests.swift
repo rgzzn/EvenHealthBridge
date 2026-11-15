@@ -34,6 +34,37 @@ import Testing
     #expect(discovered.matches(.init(productType: nil, sourceName: "Example Ring export")) == true)
 }
 
+@Test func sourceAvailabilityGroupsMetricsWithoutRetainingMeasurements() {
+    let observations = [
+        ReferenceSourceObservation(
+            identity: .init(productType: "watch7,20", sourceName: "Luca's Apple Watch"),
+            metric: .steps
+        ),
+        ReferenceSourceObservation(
+            identity: .init(productType: "watch7,20", sourceName: "Luca's Apple Watch"),
+            metric: .heartRate
+        ),
+        ReferenceSourceObservation(
+            identity: .init(productType: "ring1,2", sourceName: "Example Ring"),
+            metric: .oxygen
+        ),
+        ReferenceSourceObservation(
+            identity: .init(productType: "ring1,3", sourceName: "Example Ring"),
+            metric: .oxygen
+        )
+    ]
+
+    let availability = ReferenceSourceAvailability.summarize(observations)
+    let watch = availability.first { $0.source == .appleWatch }
+    let ringOne = availability.first { $0.source.productTypePrefix == "ring1,2" }
+    let ringTwo = availability.first { $0.source.productTypePrefix == "ring1,3" }
+
+    #expect(watch?.metrics == [.steps, .heartRate])
+    #expect(watch?.totalSamples == 2)
+    #expect(ringOne?.metrics == [.oxygen])
+    #expect(ringTwo?.metrics == [.oxygen])
+}
+
 @Test func referenceSampleRetainsOnlyAValidSourceInterval() {
     let start = Date(timeIntervalSince1970: 1_700_600_000)
     let timed = SourceCoverageReferenceSample(

@@ -58,6 +58,8 @@
 "Nessun campione %@ trovato nell'intervallo. Verifica l'intervallo e il permesso di lettura in Apple Salute; Apple non comunica all'app se il permesso di lettura è stato negato." = "No %@ samples were found in this interval. Check the interval and read permission in Apple Health; Apple does not tell the app when read permission has been denied.";
 "Campioni %@ trovati" = "%@ samples found";
 "Impossibile cercare le fonti in Apple Salute: %@" = "Unable to find sources in Apple Health: %@";
+"Metriche trovate" = "Metrics found";
+"Campioni trovati" = "Samples found";
 "Ossigenazione" = "Oxygen saturation";
 "Sonno" = "Sleep";
 "Temperatura" = "Temperature";
