@@ -6,6 +6,28 @@ import EvenHealthCore
 
 private final class SyntheticArchiveMarker {}
 
+@Test func principalInterfaceStringsHaveEnglishTranslations() throws {
+    let appBundle = Bundle(for: ImportCoordinator.self)
+    let englishPath = try #require(appBundle.path(forResource: "en", ofType: "lproj"))
+    let english = try #require(Bundle(path: englishPath))
+    let expectedTranslations = [
+        "Importa": "Import",
+        "Studio": "Study",
+        "Cronologia": "History",
+        "Impostazioni": "Settings",
+        "Seleziona archivio ZIP": "Select ZIP archive",
+        "Importa il sonno in Apple Salute": "Import sleep into Apple Health",
+        "Confronta con Apple Watch": "Compare with Apple Watch",
+        "Intervallo di confronto": "Comparison interval",
+        "Permessi Salute": "Health permissions",
+        "Dati e cronologia restano sull'iPhone. Nessun account, server o tracciamento. Gli archivi non vengono conservati.": "Data and history stay on iPhone. No account, server, or tracking. Archives are not retained."
+    ]
+
+    for (key, translation) in expectedTranslations {
+        #expect(english.localizedString(forKey: key, value: nil, table: "Localizable") == translation)
+    }
+}
+
 @MainActor @Test func appIntentsRouteToTheirFocusedWorkflow() async throws {
     let router = EvenHealthBridgeIntentRouter.shared
     router.pendingRoute = nil
