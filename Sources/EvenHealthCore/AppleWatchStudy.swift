@@ -20,21 +20,38 @@ public struct ReferenceSourceDefinition: Sendable, Hashable, Identifiable {
     public let displayName: String
     public let productTypePrefix: String
     public let historicalSourceNameMarker: String
+    /// A person-selected source uses the complete product type reported by HealthKit. It must not
+    /// widen into another device just because their product type shares a textual prefix.
+    public let requiresExactProductType: Bool
 
-    public init(id: String, displayName: String, productTypePrefix: String, historicalSourceNameMarker: String) {
+    public init(
+        id: String,
+        displayName: String,
+        productTypePrefix: String,
+        historicalSourceNameMarker: String,
+        requiresExactProductType: Bool = false
+    ) {
         self.id = id
         self.displayName = displayName
         self.productTypePrefix = productTypePrefix
         self.historicalSourceNameMarker = historicalSourceNameMarker
+        self.requiresExactProductType = requiresExactProductType
     }
 
     public func matches(_ identity: ReferenceSourceIdentity) -> Bool {
         if let productType = identity.productType {
-            return productType.trimmingCharacters(in: .whitespacesAndNewlines)
-                .lowercased()
-                .hasPrefix(productTypePrefix.lowercased())
+            let actual = productType.trimmingCharacters(in: .whitespacesAndNewlines)
+            let expected = productTypePrefix.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !actual.isEmpty, !expected.isEmpty else { return false }
+            if requiresExactProductType {
+                return actual.caseInsensitiveCompare(expected) == .orderedSame
+            }
+            return actual.lowercased().hasPrefix(expected.lowercased())
         }
 
+        guard !historicalSourceNameMarker.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return false
+        }
         return identity.sourceName.localizedCaseInsensitiveContains(historicalSourceNameMarker)
     }
 
@@ -44,6 +61,24 @@ public struct ReferenceSourceDefinition: Sendable, Hashable, Identifiable {
         productTypePrefix: "watch",
         historicalSourceNameMarker: "apple watch"
     )
+
+    /// Builds a temporary, exact definition from a source selected in the local study UI.
+    /// Product type remains the preferred identity; the source name is used only for older
+    /// HealthKit samples where the product type is unavailable.
+    public static func discovered(_ identity: ReferenceSourceIdentity) -> Self? {
+        let sourceName = identity.sourceName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !sourceName.isEmpty else { return nil }
+        let productType = identity.productType?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let usableProductType = productType?.isEmpty == false ? productType! : nil
+        let id = ["discovered-source", usableProductType ?? "historical", sourceName].joined(separator: "|")
+        return Self(
+            id: id,
+            displayName: sourceName,
+            productTypePrefix: usableProductType ?? "",
+            historicalSourceNameMarker: sourceName,
+            requiresExactProductType: usableProductType != nil
+        )
+    }
 }
 
 /// Compatibility facade for the current Apple Watch UI.

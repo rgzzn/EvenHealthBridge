@@ -35,7 +35,7 @@ The preview shows the category-specific missing evidence instead of a generic wa
 
 For future validated categories, the core includes a conservative overlay planner. It accepts only complete Even intervals that are eligible for writing and have no overlap with existing Health coverage. It excludes the entire sample on any overlap and never creates a partial value for a short uncovered fragment. The planner is not connected to any new HealthKit writer until a category clears its semantic gate.
 
-The implementation gates, current reusable overlay components, and verification criteria for another wearable or metric are detailed in [the multi-wearable integration plan](Docs/MultiWearableIntegrationPlan.md).
+The Study tab can compare the selected Even archive with Apple Watch or another source discovered locally in the selected Apple Health window. This source discovery is read-only, is not persisted, and never enables importing a category by itself. The implementation gates, current reusable overlay components, and verification criteria for another wearable or metric are detailed in [the multi-wearable integration plan](Docs/MultiWearableIntegrationPlan.md).
 
 ## Apple Watch study
 

@@ -14,18 +14,11 @@ struct HealthKitReferenceReader {
 
     func requestAndRead(in interval: DateInterval) async throws -> [AppleWatchReferenceSample] {
         guard HKHealthStore.isHealthDataAvailable() else { throw AppleWatchStudyError.healthUnavailable }
-        let requested = Set(AppleWatchStudyMetric.allCases.compactMap { quantityType(for: $0) as HKObjectType? })
-        try await store.requestAuthorization(toShare: [], read: requested)
+        try await requestReadAuthorization()
 
         var output: [AppleWatchReferenceSample] = []
         for metric in AppleWatchStudyMetric.allCases {
-            guard let type = quantityType(for: metric) else { continue }
-            let predicate = HKQuery.predicateForSamples(withStart: interval.start, end: interval.end, options: .strictStartDate)
-            let descriptor = HKSampleQueryDescriptor(
-                predicates: [.quantitySample(type: type, predicate: predicate)],
-                sortDescriptors: []
-            )
-            let samples = try await descriptor.result(for: store)
+            let samples = try await samples(for: metric, in: interval)
             output += samples.compactMap { sample in
                 guard matchesReferenceSource(sample), let value = value(of: sample, metric: metric) else { return nil }
                 return AppleWatchReferenceSample(
@@ -38,6 +31,47 @@ struct HealthKitReferenceReader {
             }
         }
         return output
+    }
+
+    /// Discovers only the source identity of samples in the selected study window. The caller
+    /// keeps the result in view state and no HealthKit samples or source list are persisted.
+    func discoverSources(in interval: DateInterval) async throws -> [ReferenceSourceDefinition] {
+        guard HKHealthStore.isHealthDataAvailable() else { throw AppleWatchStudyError.healthUnavailable }
+        try await requestReadAuthorization()
+
+        var identities = Set<ReferenceSourceIdentity>()
+        for metric in AppleWatchStudyMetric.allCases {
+            for sample in try await samples(for: metric, in: interval) {
+                identities.insert(.init(
+                    productType: sample.sourceRevision.productType,
+                    sourceName: sample.sourceRevision.source.name
+                ))
+            }
+        }
+        let sources = identities.compactMap { identity -> ReferenceSourceDefinition? in
+            if ReferenceSourceDefinition.appleWatch.matches(identity) {
+                return .appleWatch
+            }
+            return .discovered(identity)
+        }
+        return Array(Set(sources)).sorted {
+            $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending
+        }
+    }
+
+    private func requestReadAuthorization() async throws {
+        let requested = Set(AppleWatchStudyMetric.allCases.compactMap { quantityType(for: $0) as HKObjectType? })
+        try await store.requestAuthorization(toShare: [], read: requested)
+    }
+
+    private func samples(for metric: AppleWatchStudyMetric, in interval: DateInterval) async throws -> [HKQuantitySample] {
+        guard let type = quantityType(for: metric) else { return [] }
+        let predicate = HKQuery.predicateForSamples(withStart: interval.start, end: interval.end, options: .strictStartDate)
+        let descriptor = HKSampleQueryDescriptor(
+            predicates: [.quantitySample(type: type, predicate: predicate)],
+            sortDescriptors: []
+        )
+        return try await descriptor.result(for: store)
     }
 
     private func quantityType(for metric: AppleWatchStudyMetric) -> HKQuantityType? {
@@ -96,9 +130,12 @@ struct AppleWatchStudyView: View {
     @State private var endDate = Date.now
     @State private var didUseArchivePeriod = false
     @State private var isRunning = false
+    @State private var isDiscoveringSources = false
     @State private var report: AppleWatchStudyReport?
     @State private var error: String?
     @State private var showImporter = false
+    @State private var selectedReferenceSource = ReferenceSourceDefinition.appleWatch
+    @State private var discoveredReferenceSources: [ReferenceSourceDefinition] = []
 
     private var dataset: ParsedDataset? { coordinator.dataset }
 
@@ -111,6 +148,7 @@ struct AppleWatchStudyView: View {
         Form {
             archiveSection
             intervalSection
+            sourceSection
             studySection
             if let report { reportSection(report) }
             if let error {
@@ -139,8 +177,11 @@ struct AppleWatchStudyView: View {
         .onChange(of: dataset?.archiveHash) { _, _ in
             report = nil
             error = nil
+            discoveredReferenceSources = []
+            selectedReferenceSource = .appleWatch
             setArchivePeriodIfNeeded()
         }
+        .onChange(of: selectedReferenceSource) { _, _ in report = nil }
         .onAppear(perform: setArchivePeriodIfNeeded)
     }
 
@@ -171,7 +212,7 @@ struct AppleWatchStudyView: View {
     }
 
     private var studySection: some View {
-        Section("Confronto Apple Watch") {
+        Section("Confronto") {
             Text("Richiede la lettura di passi, calorie attive, battito, HRV e ossigenazione. Non richiede scrittura e non modifica i dati in Apple Salute.")
                 .font(.footnote).foregroundStyle(.secondary)
             Button {
@@ -180,11 +221,33 @@ struct AppleWatchStudyView: View {
                 if isRunning {
                     Label("Confronto in corso", systemImage: "chart.xyaxis.line")
                 } else {
-                    Label("Confronta con Apple Watch", systemImage: "applewatch")
+                    Label(String(format: String(localized: "Confronta con %@"), locale: .current, selectedReferenceSource.displayName), systemImage: selectedReferenceSource == .appleWatch ? "applewatch" : "sensor.tag.radiowaves.forward")
                 }
             }
             .disabled(dataset == nil || selectedInterval == nil || isRunning)
             .accessibilityHint("Chiede lettura in Apple Salute, non scrive alcun campione")
+        }
+    }
+
+    private var sourceSection: some View {
+        Section("Fonte di confronto") {
+            Picker("Fonte", selection: $selectedReferenceSource) {
+                ForEach(referenceSourceOptions) { source in
+                    Text(source.displayName).tag(source)
+                }
+            }
+            Button {
+                Task { await discoverReferenceSources() }
+            } label: {
+                if isDiscoveringSources {
+                    Label("Ricerca fonti in corso", systemImage: "magnifyingglass")
+                } else {
+                    Label("Cerca altre fonti", systemImage: "sensor.tag.radiowaves.forward")
+                }
+            }
+            .disabled(selectedInterval == nil || isDiscoveringSources || isRunning)
+            Text("Cerca solo le fonti presenti nell’intervallo selezionato. I nomi e i dati delle fonti restano sul dispositivo e non vengono salvati dall’app.")
+                .font(.footnote).foregroundStyle(.secondary)
         }
     }
 
@@ -194,11 +257,11 @@ struct AppleWatchStudyView: View {
             Text("Questo è uno studio locale: non abilita automaticamente importazioni.")
                 .font(.footnote).foregroundStyle(.secondary)
             if report.referenceRecordCount == 0 {
-                Label("Nessun campione Apple Watch trovato nell'intervallo. Verifica l'intervallo e il permesso di lettura in Apple Salute; Apple non comunica all'app se il permesso di lettura è stato negato.", systemImage: "exclamationmark.triangle")
+                Label(String(format: String(localized: "Nessun campione %@ trovato nell'intervallo. Verifica l'intervallo e il permesso di lettura in Apple Salute; Apple non comunica all'app se il permesso di lettura è stato negato."), locale: .current, selectedReferenceSource.displayName), systemImage: "exclamationmark.triangle")
                     .font(.footnote)
                     .foregroundStyle(.orange)
             } else {
-                LabeledContent("Campioni Apple Watch trovati", value: "\(report.referenceRecordCount)")
+                LabeledContent(String(format: String(localized: "Campioni %@ trovati"), locale: .current, selectedReferenceSource.displayName), value: "\(report.referenceRecordCount)")
             }
             ForEach(report.results) { result in
                 DisclosureGroup(result.metric.title) {
@@ -237,13 +300,37 @@ struct AppleWatchStudyView: View {
         report = nil
         defer { isRunning = false }
         do {
-            let references = try await HealthKitReferenceReader(referenceSource: .appleWatch).requestAndRead(in: interval)
+            let references = try await HealthKitReferenceReader(referenceSource: selectedReferenceSource).requestAndRead(in: interval)
             guard !Task.isCancelled else { return }
             report = AppleWatchStudyEngine().study(measurements: dataset.measurements, references: references, interval: interval)
         } catch is CancellationError {
             return
         } catch {
             let format = String(localized: "Impossibile leggere i dati Apple Watch: %@")
+            self.error = String(format: format, locale: .current, error.localizedDescription)
+        }
+    }
+
+    private var referenceSourceOptions: [ReferenceSourceDefinition] {
+        Array(Set([ReferenceSourceDefinition.appleWatch] + discoveredReferenceSources)).sorted {
+            $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending
+        }
+    }
+
+    private func discoverReferenceSources() async {
+        guard let interval = selectedInterval else { return }
+        isDiscoveringSources = true
+        error = nil
+        defer { isDiscoveringSources = false }
+        do {
+            discoveredReferenceSources = try await HealthKitReferenceReader().discoverSources(in: interval)
+            if !referenceSourceOptions.contains(selectedReferenceSource) {
+                selectedReferenceSource = .appleWatch
+            }
+        } catch is CancellationError {
+            return
+        } catch {
+            let format = String(localized: "Impossibile cercare le fonti in Apple Salute: %@")
             self.error = String(format: format, locale: .current, error.localizedDescription)
         }
     }

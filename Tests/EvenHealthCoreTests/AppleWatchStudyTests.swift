@@ -25,6 +25,15 @@ import Testing
     #expect(futureWearable.matches(.init(productType: "watch7,20", sourceName: "Future Wearable")) == false)
 }
 
+@Test func discoveredSourceUsesAnExactProductTypeBeforeItsHistoricalNameFallback() {
+    let identity = ReferenceSourceIdentity(productType: "ring1,2", sourceName: "Example Ring")
+    let discovered = try! #require(ReferenceSourceDefinition.discovered(identity))
+
+    #expect(discovered.matches(.init(productType: "ring1,2", sourceName: "Another source")) == true)
+    #expect(discovered.matches(.init(productType: "ring1,3", sourceName: "Example Ring")) == false)
+    #expect(discovered.matches(.init(productType: nil, sourceName: "Example Ring export")) == true)
+}
+
 @Test func referenceSampleRetainsOnlyAValidSourceInterval() {
     let start = Date(timeIntervalSince1970: 1_700_600_000)
     let timed = SourceCoverageReferenceSample(
