@@ -193,6 +193,13 @@ struct AppleWatchStudyView: View {
         Section("Risultato locale") {
             Text("Questo è uno studio locale: non abilita automaticamente importazioni.")
                 .font(.footnote).foregroundStyle(.secondary)
+            if report.referenceRecordCount == 0 {
+                Label("Nessun campione Apple Watch trovato nell'intervallo. Verifica l'intervallo e il permesso di lettura in Apple Salute; Apple non comunica all'app se il permesso di lettura è stato negato.", systemImage: "exclamationmark.triangle")
+                    .font(.footnote)
+                    .foregroundStyle(.orange)
+            } else {
+                LabeledContent("Campioni Apple Watch trovati", value: "\(report.referenceRecordCount)")
+            }
             ForEach(report.results) { result in
                 DisclosureGroup(result.metric.title) {
                     LabeledContent("Record Even nel periodo", value: "\(result.evenRecordsInRange)")

@@ -63,6 +63,7 @@ import Testing
     #expect(result?.matchedRecords == 1)
     #expect(result?.unmatchedEvenRecords == 1)
     #expect(result?.medianAbsoluteDifference == 2)
+    #expect(report.referenceRecordCount == 1)
 }
 
 @Test func studyUsesActiveCaloriesAndExcludesDuplicateRows() {

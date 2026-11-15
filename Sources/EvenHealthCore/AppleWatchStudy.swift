@@ -187,6 +187,14 @@ public struct SourceCoverageReport: Sendable {
     public let interval: DateInterval
     public let results: [SourceCoverageMetricResult]
 
+    /// Total reference samples returned for the selected study interval.
+    /// This is a count only; the report never retains HealthKit samples themselves.
+    public var referenceRecordCount: Int {
+        results.reduce(into: 0) { total, result in
+            total += result.referenceRecords
+        }
+    }
+
     public init(interval: DateInterval, results: [SourceCoverageMetricResult]) {
         self.interval = interval
         self.results = results
