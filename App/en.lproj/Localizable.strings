@@ -142,8 +142,8 @@
 "Scrittura" = "Writing";
 "Quando confermi l'importazione, l'app chiede accesso al sonno in lettura e scrittura. Interroga soltanto i campioni che ha creato per evitare duplicati dopo un'interruzione." = "When you confirm import, the app requests read and write access to sleep. It queries only samples it created to prevent duplicates after an interruption.";
 "Aggiorna stato" = "Refresh status";
-"Studio Apple Watch" = "Apple Watch study";
-"La scheda Studio richiede, solo quando avvii un confronto, la lettura di passi, calorie attive, battito, HRV e ossigenazione. Non scrive o modifica campioni Apple Watch." = "The Study tab requests read access to steps, active calories, heart rate, HRV, and oxygen saturation only when you start a comparison. It does not write or modify Apple Watch samples.";
+"Studio e fonti di confronto" = "Study and comparison sources";
+"La scheda Studio richiede, solo quando avvii un confronto, la lettura di passi, calorie attive, battito, HRV e ossigenazione. Può confrontare Apple Watch o un’altra fonte che selezioni nell’intervallo scelto. Non scrive, modifica o conserva campioni Apple Salute." = "The Study tab requests read access to steps, active calories, heart rate, HRV, and oxygen saturation only when you start a comparison. It can compare Apple Watch or another source you select in the chosen interval. It does not write, modify, or store Apple Health samples.";
 "Se il permesso è negato" = "If permission is denied";
 "Apri le impostazioni di Apple Salute e abilita la scrittura dei dati sul sonno per Even Health Bridge." = "Open Apple Health settings and allow Even Health Bridge to write sleep data.";
 "Archivio Even" = "Even archive";

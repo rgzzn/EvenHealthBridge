@@ -13,8 +13,8 @@ struct HealthPermissionsView: View {
                     .foregroundStyle(.secondary)
                 Button("Aggiorna stato") { refresh() }
             }
-            Section("Studio Apple Watch") {
-                Text("La scheda Studio richiede, solo quando avvii un confronto, la lettura di passi, calorie attive, battito, HRV e ossigenazione. Non scrive o modifica campioni Apple Watch.")
+            Section("Studio e fonti di confronto") {
+                Text("La scheda Studio richiede, solo quando avvii un confronto, la lettura di passi, calorie attive, battito, HRV e ossigenazione. Può confrontare Apple Watch o un’altra fonte che selezioni nell’intervallo scelto. Non scrive, modifica o conserva campioni Apple Salute.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
