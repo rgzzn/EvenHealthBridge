@@ -9,6 +9,7 @@ import Testing
 
 @Test func appleWatchSourceClassifierUsesOnlyANarrowHistoricalFallback() {
     #expect(AppleWatchSourceClassifier.isAppleWatch(productType: nil, sourceName: "Luca's Apple Watch") == true)
+    #expect(AppleWatchSourceClassifier.isAppleWatch(productType: "  ", sourceName: "Luca's Apple Watch") == true)
     #expect(AppleWatchSourceClassifier.isAppleWatch(productType: nil, sourceName: "Watch export") == false)
 }
 

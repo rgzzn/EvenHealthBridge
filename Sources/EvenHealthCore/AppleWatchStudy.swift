@@ -39,10 +39,10 @@ public struct ReferenceSourceDefinition: Sendable, Hashable, Identifiable {
     }
 
     public func matches(_ identity: ReferenceSourceIdentity) -> Bool {
-        if let productType = identity.productType {
-            let actual = productType.trimmingCharacters(in: .whitespacesAndNewlines)
+        let actual = identity.productType?.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let actual, !actual.isEmpty {
             let expected = productTypePrefix.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !actual.isEmpty, !expected.isEmpty else { return false }
+            guard !expected.isEmpty else { return false }
             if requiresExactProductType {
                 return actual.caseInsensitiveCompare(expected) == .orderedSame
             }
