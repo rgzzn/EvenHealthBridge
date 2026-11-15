@@ -127,6 +127,7 @@ struct AppleWatchStudyView: View {
     @State private var isRunning = false
     @State private var isDiscoveringSources = false
     @State private var report: AppleWatchStudyReport?
+    @State private var reportSource: ReferenceSourceDefinition?
     @State private var error: String?
     @State private var showImporter = false
     @State private var selectedReferenceSource = ReferenceSourceDefinition.appleWatch
@@ -145,7 +146,7 @@ struct AppleWatchStudyView: View {
             intervalSection
             sourceSection
             studySection
-            if let report { reportSection(report) }
+            if let report, let reportSource { reportSection(report, source: reportSource) }
             if let error {
                 Section("Errore") {
                     Label(error, systemImage: "exclamationmark.triangle")
@@ -171,12 +172,16 @@ struct AppleWatchStudyView: View {
         }
         .onChange(of: dataset?.archiveHash) { _, _ in
             report = nil
+            reportSource = nil
             error = nil
             discoveredReferenceSources = []
             selectedReferenceSource = .appleWatch
             setArchivePeriodIfNeeded()
         }
-        .onChange(of: selectedReferenceSource) { _, _ in report = nil }
+        .onChange(of: selectedReferenceSource) { _, _ in
+            report = nil
+            reportSource = nil
+        }
         .onAppear(perform: setArchivePeriodIfNeeded)
     }
 
@@ -231,6 +236,7 @@ struct AppleWatchStudyView: View {
                     Text(source.displayName).tag(source)
                 }
             }
+            .disabled(isRunning)
             Button {
                 Task { await discoverReferenceSources() }
             } label: {
@@ -251,16 +257,16 @@ struct AppleWatchStudyView: View {
     }
 
     @ViewBuilder
-    private func reportSection(_ report: AppleWatchStudyReport) -> some View {
+    private func reportSection(_ report: AppleWatchStudyReport, source: ReferenceSourceDefinition) -> some View {
         Section("Risultato locale") {
             Text("Questo è uno studio locale: non abilita automaticamente importazioni.")
                 .font(.footnote).foregroundStyle(.secondary)
             if report.referenceRecordCount == 0 {
-                Label(String(format: String(localized: "Nessun campione %@ trovato nell'intervallo. Verifica l'intervallo e il permesso di lettura in Apple Salute; Apple non comunica all'app se il permesso di lettura è stato negato."), locale: .current, selectedReferenceSource.displayName), systemImage: "exclamationmark.triangle")
+                Label(String(format: String(localized: "Nessun campione %@ trovato nell'intervallo. Verifica l'intervallo e il permesso di lettura in Apple Salute; Apple non comunica all'app se il permesso di lettura è stato negato."), locale: .current, source.displayName), systemImage: "exclamationmark.triangle")
                     .font(.footnote)
                     .foregroundStyle(.orange)
             } else {
-                LabeledContent(String(format: String(localized: "Campioni %@ trovati"), locale: .current, selectedReferenceSource.displayName), value: "\(report.referenceRecordCount)")
+                LabeledContent(String(format: String(localized: "Campioni %@ trovati"), locale: .current, source.displayName), value: "\(report.referenceRecordCount)")
             }
             ForEach(report.results) { result in
                 DisclosureGroup(result.metric.title) {
@@ -297,10 +303,13 @@ struct AppleWatchStudyView: View {
         isRunning = true
         error = nil
         report = nil
+        reportSource = nil
         defer { isRunning = false }
         do {
-            let references = try await HealthKitReferenceReader(referenceSource: selectedReferenceSource).requestAndRead(in: interval)
+            let source = selectedReferenceSource
+            let references = try await HealthKitReferenceReader(referenceSource: source).requestAndRead(in: interval)
             guard !Task.isCancelled else { return }
+            reportSource = source
             report = AppleWatchStudyEngine().study(measurements: dataset.measurements, references: references, interval: interval)
         } catch is CancellationError {
             return
