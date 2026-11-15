@@ -17,7 +17,7 @@ The dashboard shows the Apple Health sleep-write status, imported categories, sa
 
 ## Local automation
 
-The app exposes two local App Shortcuts: **Import Even data** opens the ZIP-import workflow, and **Analyze Even data** opens the Apple Watch study. They only navigate into the app: neither reads a HealthKit record nor imports anything until you explicitly continue in the interface.
+The app exposes two local App Shortcuts: **Import Even data** opens the ZIP-import workflow, and **Analyze Even data** opens the local reference-source study. They only navigate into the app: neither reads a HealthKit record nor imports anything until you explicitly continue in the interface.
 
 ## Data and limitations
 

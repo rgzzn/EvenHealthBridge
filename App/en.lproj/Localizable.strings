@@ -148,6 +148,7 @@
 "Da" = "From";
 "A" = "To";
 "I dati Apple Watch vengono interrogati solo in questo intervallo e non sono salvati nel database dell'app." = "Apple Watch data is queried only in this interval and is not saved in the app database.";
+"I dati della fonte selezionata vengono interrogati solo in questo intervallo e non sono salvati nel database dell'app." = "Data from the selected source is queried only in this interval and is not saved in the app database.";
 "Confronto Apple Watch" = "Apple Watch comparison";
 "Richiede la lettura di passi, calorie attive, battito, HRV e ossigenazione. Non richiede scrittura e non modifica i dati in Apple Salute." = "Requires read access to steps, active calories, heart rate, HRV, and oxygen saturation. It does not require write access or modify Apple Health data.";
 "Confronto in corso" = "Comparison in progress";
@@ -163,9 +164,11 @@
 "Record Even esclusi" = "Excluded Even records";
 "Conflitti nel file Even" = "Conflicts in Even archive";
 "Record Apple Watch" = "Apple Watch records";
+"Record della fonte" = "Source records";
 "Corrispondenze vicine" = "Nearby matches";
 "Even senza confronto" = "Even records without a match";
 "Record Apple Watch senza corrispondenza" = "Apple Watch records without a match";
+"Record della fonte senza corrispondenza" = "Source records without a match";
 "Copertura del confronto" = "Comparison coverage";
 "Differenza assoluta mediana" = "Median absolute difference";
 "Mostra la copertura temporale, non una differenza numerica: l'intervallo del record Even non e ancora documentato." = "Shows time coverage, not a numeric difference: the Even record interval is not yet documented.";
@@ -173,6 +176,7 @@
 "La metrica HRV Even non è stata confermata come SDNN: il report mostra solo presenza temporale e resta esclusa dall'importazione." = "Even HRV has not been confirmed as SDNN: this report shows temporal presence only, and it remains excluded from import.";
 "Questo confronto non identifica lacune da riempire né modifica i dati in Apple Salute." = "This comparison does not identify gaps to fill or modify Apple Health data.";
 "Impossibile leggere i dati Apple Watch: %@" = "Unable to read Apple Watch data: %@";
+"Impossibile leggere i dati della fonte: %@" = "Unable to read data from the source: %@";
 "Apple Salute non e disponibile su questo dispositivo." = "Apple Health is unavailable on this device.";
 "Apple Salute non è disponibile su questo dispositivo." = "Apple Health is unavailable on this device.";
 "Autorizzazione alla scrittura del sonno non concessa." = "Sleep write authorization was not granted.";

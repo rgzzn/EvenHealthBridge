@@ -207,7 +207,7 @@ struct AppleWatchStudyView: View {
                 .disabled(isRunning || isDiscoveringSources)
             DatePicker("A", selection: $endDate, in: startDate..., displayedComponents: [.date, .hourAndMinute])
                 .disabled(isRunning || isDiscoveringSources)
-            Text("I dati Apple Watch vengono interrogati solo in questo intervallo e non sono salvati nel database dell'app.")
+            Text("I dati della fonte selezionata vengono interrogati solo in questo intervallo e non sono salvati nel database dell'app.")
                 .font(.footnote).foregroundStyle(.secondary)
         }
     }
@@ -275,10 +275,10 @@ struct AppleWatchStudyView: View {
                     LabeledContent("Record confrontabili", value: "\(result.comparableEvenRecords)")
                     LabeledContent("Record Even esclusi", value: "\(result.excludedEvenRecords)")
                     LabeledContent("Conflitti nel file Even", value: "\(result.conflictingEvenRecords)")
-                    LabeledContent("Record Apple Watch", value: "\(result.referenceRecords)")
+                    LabeledContent("Record della fonte", value: "\(result.referenceRecords)")
                     LabeledContent("Corrispondenze vicine", value: "\(result.matchedRecords)")
                     LabeledContent("Even senza confronto", value: "\(result.unmatchedEvenRecords)")
-                    LabeledContent("Record Apple Watch senza corrispondenza", value: "\(result.unmatchedReferenceRecords)")
+                    LabeledContent("Record della fonte senza corrispondenza", value: "\(result.unmatchedReferenceRecords)")
                     if let coverage = result.coverage {
                         LabeledContent("Copertura del confronto", value: coverage.formatted(.percent.precision(.fractionLength(0))))
                     }
@@ -315,7 +315,7 @@ struct AppleWatchStudyView: View {
         } catch is CancellationError {
             return
         } catch {
-            let format = String(localized: "Impossibile leggere i dati Apple Watch: %@")
+            let format = String(localized: "Impossibile leggere i dati della fonte: %@")
             self.error = String(format: format, locale: .current, error.localizedDescription)
         }
     }
