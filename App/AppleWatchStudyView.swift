@@ -171,13 +171,12 @@ struct AppleWatchStudyView: View {
             }
         }
         .onChange(of: dataset?.archiveHash) { _, _ in
-            report = nil
-            reportSource = nil
+            resetComparisonState()
             error = nil
-            discoveredReferenceSources = []
-            selectedReferenceSource = .appleWatch
             setArchivePeriodIfNeeded()
         }
+        .onChange(of: startDate) { _, _ in resetComparisonState() }
+        .onChange(of: endDate) { _, _ in resetComparisonState() }
         .onChange(of: selectedReferenceSource) { _, _ in
             report = nil
             reportSource = nil
@@ -205,7 +204,9 @@ struct AppleWatchStudyView: View {
     private var intervalSection: some View {
         Section("Intervallo di confronto") {
             DatePicker("Da", selection: $startDate, displayedComponents: [.date, .hourAndMinute])
+                .disabled(isRunning || isDiscoveringSources)
             DatePicker("A", selection: $endDate, in: startDate..., displayedComponents: [.date, .hourAndMinute])
+                .disabled(isRunning || isDiscoveringSources)
             Text("I dati Apple Watch vengono interrogati solo in questo intervallo e non sono salvati nel database dell'app.")
                 .font(.footnote).foregroundStyle(.secondary)
         }
@@ -224,7 +225,7 @@ struct AppleWatchStudyView: View {
                     Label(String(format: String(localized: "Confronta con %@"), locale: .current, selectedReferenceSource.displayName), systemImage: selectedReferenceSource == .appleWatch ? "applewatch" : "sensor.tag.radiowaves.forward")
                 }
             }
-            .disabled(dataset == nil || selectedInterval == nil || isRunning)
+            .disabled(dataset == nil || selectedInterval == nil || isRunning || isDiscoveringSources)
             .accessibilityHint("Chiede lettura in Apple Salute, non scrive alcun campione")
         }
     }
@@ -236,7 +237,7 @@ struct AppleWatchStudyView: View {
                     Text(source.displayName).tag(source)
                 }
             }
-            .disabled(isRunning)
+            .disabled(isRunning || isDiscoveringSources)
             Button {
                 Task { await discoverReferenceSources() }
             } label: {
@@ -345,6 +346,13 @@ struct AppleWatchStudyView: View {
             let format = String(localized: "Impossibile cercare le fonti in Apple Salute: %@")
             self.error = String(format: format, locale: .current, error.localizedDescription)
         }
+    }
+
+    private func resetComparisonState() {
+        report = nil
+        reportSource = nil
+        discoveredReferenceSources = []
+        selectedReferenceSource = .appleWatch
     }
 
     private func datasetPeriod(_ dataset: ParsedDataset) -> DateInterval? {
