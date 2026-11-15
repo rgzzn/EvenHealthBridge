@@ -18,6 +18,44 @@ private func withArchive(_ files: [String: String], body: (URL) throws -> Void) 
     try body(url)
 }
 
+@Test func sharedArchiveStoreReplacesOlderArchiveAndKeepsOnlyTheClaimedFile() throws {
+    let folder = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: folder) }
+
+    let first = folder.appendingPathComponent("first.zip")
+    let second = folder.appendingPathComponent("second.zip")
+    try Data("first".utf8).write(to: first)
+    try Data("second".utf8).write(to: second)
+    let store = SharedArchiveFileStore(folder: folder.appendingPathComponent("Inbox", isDirectory: true), maximumArchiveBytes: 32)
+
+    let copiedFirst = try store.receive(from: first)
+    let copiedSecond = try store.receive(from: second)
+
+    #expect(!FileManager.default.fileExists(atPath: copiedFirst.path))
+    #expect(FileManager.default.fileExists(atPath: copiedSecond.path))
+    #expect(try Data(contentsOf: copiedSecond) == Data("second".utf8))
+    #expect(try FileManager.default.contentsOfDirectory(at: store.folder, includingPropertiesForKeys: nil).count == 1)
+
+    try store.discard(copiedSecond)
+    #expect(!FileManager.default.fileExists(atPath: copiedSecond.path))
+}
+
+@Test func sharedArchiveStoreRejectsWrongFileFormatAndOversizedArchives() throws {
+    let folder = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: folder) }
+
+    let text = folder.appendingPathComponent("not-an-archive.txt")
+    let largeArchive = folder.appendingPathComponent("large.zip")
+    try Data("text".utf8).write(to: text)
+    try Data(repeating: 0, count: 8).write(to: largeArchive)
+    let store = SharedArchiveFileStore(folder: folder.appendingPathComponent("Inbox", isDirectory: true), maximumArchiveBytes: 4)
+
+    #expect(throws: SharedArchiveInboxError.self) { try store.receive(from: text) }
+    #expect(throws: SharedArchiveInboxError.self) { try store.receive(from: largeArchive) }
+}
+
 @Test func sevenCSVFixtureAndValidatedSleep() throws {
     let time = "2026-10-25T02:30:00+02:00"
     let sleepStart = "2026-10-25T01:00:00+02:00"

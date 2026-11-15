@@ -233,7 +233,7 @@ private struct CategorySummaryRow: View {
     var body: some View {
         DisclosureGroup {
             LabeledContent("Misurazioni analizzate", value: "\(summary.records)")
-            LabeledContent("Validati nello ZIP", value: "\(summary.eligible)")
+            LabeledContent("Validi nel formato ZIP", value: "\(summary.eligible)")
             if isAutomaticallyImportable {
                 LabeledContent("Nuovi in Salute", value: "\(summary.new)")
                 LabeledContent("Già importati", value: "\(summary.alreadyImported)")
