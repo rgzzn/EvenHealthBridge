@@ -39,12 +39,16 @@ struct HealthKitReferenceReader {
 
     /// Discovers only the source identity of samples in the selected study window. The caller
     /// keeps the result in view state and no HealthKit samples or source list are persisted.
-    func discoverSources(in interval: DateInterval) async throws -> [ReferenceSourceAvailability] {
+    func discoverSources(
+        in interval: DateInterval,
+        metrics: [AppleWatchStudyMetric]
+    ) async throws -> [ReferenceSourceAvailability] {
         guard HKHealthStore.isHealthDataAvailable() else { throw AppleWatchStudyError.healthUnavailable }
-        try await requestReadAuthorization(for: AppleWatchStudyMetric.allCases)
+        guard !metrics.isEmpty else { return [] }
+        try await requestReadAuthorization(for: metrics)
 
         var observations: [ReferenceSourceObservation] = []
-        for metric in AppleWatchStudyMetric.allCases {
+        for metric in metrics {
             for sample in try await samples(for: metric, in: interval) {
                 observations.append(.init(
                     identity: .init(
@@ -296,8 +300,8 @@ struct AppleWatchStudyView: View {
                     Label("Cerca altre fonti", systemImage: "sensor.tag.radiowaves.forward")
                 }
             }
-            .disabled(selectedInterval == nil || isDiscoveringSources || isRunning)
-            Text("Cerca solo le fonti presenti nell’intervallo selezionato. I nomi e i dati delle fonti restano sul dispositivo e non vengono salvati dall’app.")
+            .disabled(selectedInterval == nil || comparisonMetrics.isEmpty || isDiscoveringSources || isRunning)
+            Text("Cerca solo le fonti presenti nell’intervallo e per le metriche selezionate. I nomi e i dati delle fonti restano sul dispositivo e non vengono salvati dall’app.")
                 .font(.footnote).foregroundStyle(.secondary)
             if let availability = selectedSourceAvailability {
                 LabeledContent("Metriche trovate", value: availability.metrics.map(\.title).joined(separator: ", "))
@@ -389,11 +393,13 @@ struct AppleWatchStudyView: View {
 
     private func discoverReferenceSources() async {
         guard let interval = selectedInterval else { return }
+        let metrics = comparisonMetrics
+        guard !metrics.isEmpty else { return }
         isDiscoveringSources = true
         error = nil
         defer { isDiscoveringSources = false }
         do {
-            discoveredReferenceSources = try await HealthKitReferenceReader().discoverSources(in: interval)
+            discoveredReferenceSources = try await HealthKitReferenceReader().discoverSources(in: interval, metrics: metrics)
             if !referenceSourceOptions.contains(selectedReferenceSource) {
                 selectedReferenceSource = .appleWatch
             }

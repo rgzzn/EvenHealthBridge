@@ -160,6 +160,7 @@
 "Confronto Apple Watch" = "Apple Watch comparison";
 "Metriche da confrontare" = "Metrics to compare";
 "Scegli quali metriche leggere e confrontare. La selezione non abilita l'importazione in Apple Salute." = "Choose which metrics to read and compare. This selection does not enable importing into Apple Health.";
+"Cerca solo le fonti presenti nell’intervallo e per le metriche selezionate. I nomi e i dati delle fonti restano sul dispositivo e non vengono salvati dall’app." = "Searches only sources present in the selected interval and for the selected metrics. Source names and data stay on this device and are not saved by the app.";
 "Seleziona almeno una metrica da confrontare." = "Select at least one metric to compare.";
 "Richiede la lettura solo di queste metriche selezionate: %@. Non richiede scrittura e non modifica i dati in Apple Salute." = "Requires read access only to these selected metrics: %@. It does not require write access or modify Apple Health data.";
 "Nessuna metrica Even confrontabile nell'intervallo selezionato." = "No Even metrics can be compared in the selected interval.";
