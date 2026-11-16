@@ -101,6 +101,22 @@ import Testing
     #expect(metrics == [.steps, .heartRate])
 }
 
+@Test func studyShowsOnlyExplicitlySelectedMetrics() {
+    let origin = Date(timeIntervalSince1970: 1_700_800_000)
+    let heartRate = measurement(kind: .heartRate, timestamp: origin, value: 70, statistic: "avg")
+    let oxygen = measurement(kind: .oxygen, timestamp: origin, value: 98, statistic: "avg")
+    let interval = DateInterval(start: origin.addingTimeInterval(-1), end: origin.addingTimeInterval(1))
+
+    let report = AppleWatchStudyEngine().study(
+        measurements: [heartRate, oxygen],
+        references: [],
+        interval: interval,
+        metrics: [.heartRate]
+    )
+
+    #expect(report.results.map(\.metric) == [.heartRate])
+}
+
 @Test func studyUsesOnlyAverageHeartRateAndPairsEachWatchSampleOnce() {
     let origin = Date(timeIntervalSince1970: 1_700_000_000)
     let average = measurement(kind: .heartRate, timestamp: origin, value: 70, statistic: "avg")

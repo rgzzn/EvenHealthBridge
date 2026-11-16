@@ -19,6 +19,7 @@ private final class SyntheticArchiveMarker {}
         "Importa il sonno in Apple Salute": "Import sleep into Apple Health",
         "Confronta con Apple Watch": "Compare with Apple Watch",
         "Intervallo di confronto": "Comparison interval",
+        "Metriche da confrontare": "Metrics to compare",
         "Permessi Salute": "Health permissions",
         "Dati e cronologia restano sull'iPhone. Nessun account, server o tracciamento. Gli archivi non vengono conservati.": "Data and history stay on iPhone. No account, server, or tracking. Archives are not retained."
     ]

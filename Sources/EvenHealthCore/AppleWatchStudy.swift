@@ -320,11 +320,12 @@ public struct SourceCoverageEngine: Sendable {
     public func analyze(
         measurements: [HealthMeasurement],
         references: [SourceCoverageReferenceSample],
-        interval: DateInterval
+        interval: DateInterval,
+        metrics: Set<SourceCoverageMetric>? = nil
     ) -> SourceCoverageReport {
         SourceCoverageReport(
             interval: interval,
-            results: contracts.map { contract in
+            results: contracts.filter { metrics?.contains($0.metric) ?? true }.map { contract in
                 makeResult(contract: contract, measurements: measurements, references: references, interval: interval)
             }
         )
@@ -455,8 +456,9 @@ public struct AppleWatchStudyEngine: Sendable {
     public func study(
         measurements: [HealthMeasurement],
         references: [AppleWatchReferenceSample],
-        interval: DateInterval
+        interval: DateInterval,
+        metrics: Set<AppleWatchStudyMetric>? = nil
     ) -> AppleWatchStudyReport {
-        coverage.analyze(measurements: measurements, references: references, interval: interval)
+        coverage.analyze(measurements: measurements, references: references, interval: interval, metrics: metrics)
     }
 }

@@ -136,6 +136,7 @@ struct AppleWatchStudyView: View {
     @State private var showImporter = false
     @State private var selectedReferenceSource = ReferenceSourceDefinition.appleWatch
     @State private var discoveredReferenceSources: [ReferenceSourceAvailability] = []
+    @State private var selectedComparisonMetrics = Set<AppleWatchStudyMetric>()
 
     private var dataset: ParsedDataset? { coordinator.dataset }
 
@@ -144,15 +145,20 @@ struct AppleWatchStudyView: View {
         return DateInterval(start: startDate, end: endDate)
     }
 
-    private var comparisonMetrics: [AppleWatchStudyMetric] {
+    private var availableComparisonMetrics: [AppleWatchStudyMetric] {
         guard let dataset, let interval = selectedInterval else { return [] }
         return AppleWatchStudyEngine().metricsForStudy(measurements: dataset.measurements, interval: interval)
+    }
+
+    private var comparisonMetrics: [AppleWatchStudyMetric] {
+        availableComparisonMetrics.filter { selectedComparisonMetrics.contains($0) }
     }
 
     var body: some View {
         Form {
             archiveSection
             intervalSection
+            metricSelectionSection
             sourceSection
             studySection
             if let report, let reportSource { reportSection(report, source: reportSource) }
@@ -182,15 +188,26 @@ struct AppleWatchStudyView: View {
         .onChange(of: dataset?.archiveHash) { _, _ in
             resetComparisonState()
             error = nil
+            didUseArchivePeriod = false
             setArchivePeriodIfNeeded()
+            selectAllAvailableMetrics()
         }
-        .onChange(of: startDate) { _, _ in resetComparisonState() }
-        .onChange(of: endDate) { _, _ in resetComparisonState() }
+        .onChange(of: startDate) { _, _ in
+            resetComparisonState()
+            retainAvailableMetricSelections()
+        }
+        .onChange(of: endDate) { _, _ in
+            resetComparisonState()
+            retainAvailableMetricSelections()
+        }
         .onChange(of: selectedReferenceSource) { _, _ in
             report = nil
             reportSource = nil
         }
-        .onAppear(perform: setArchivePeriodIfNeeded)
+        .onAppear {
+            setArchivePeriodIfNeeded()
+            if selectedComparisonMetrics.isEmpty { selectAllAvailableMetrics() }
+        }
     }
 
     @ViewBuilder
@@ -221,13 +238,30 @@ struct AppleWatchStudyView: View {
         }
     }
 
+    @ViewBuilder
+    private var metricSelectionSection: some View {
+        if !availableComparisonMetrics.isEmpty {
+            Section("Metriche da confrontare") {
+                ForEach(availableComparisonMetrics) { metric in
+                    Toggle(metric.title, isOn: metricSelectionBinding(for: metric))
+                        .disabled(isRunning || isDiscoveringSources)
+                }
+                Text("Scegli quali metriche leggere e confrontare. La selezione non abilita l'importazione in Apple Salute.")
+                    .font(.footnote).foregroundStyle(.secondary)
+            }
+        }
+    }
+
     private var studySection: some View {
         Section("Confronto") {
-            if comparisonMetrics.isEmpty {
+            if availableComparisonMetrics.isEmpty {
                 Text("Nessuna metrica Even confrontabile nell'intervallo selezionato.")
                     .font(.footnote).foregroundStyle(.secondary)
+            } else if comparisonMetrics.isEmpty {
+                Text("Seleziona almeno una metrica da confrontare.")
+                    .font(.footnote).foregroundStyle(.secondary)
             } else {
-                let format = String(localized: "Richiede la lettura solo di queste metriche presenti nell'archivio: %@. Non richiede scrittura e non modifica i dati in Apple Salute.")
+                let format = String(localized: "Richiede la lettura solo di queste metriche selezionate: %@. Non richiede scrittura e non modifica i dati in Apple Salute.")
                 Text(String(format: format, locale: .current, comparisonMetrics.map(\.title).joined(separator: ", ")))
                     .font(.footnote).foregroundStyle(.secondary)
             }
@@ -317,7 +351,7 @@ struct AppleWatchStudyView: View {
     private func runStudy() async {
         guard let dataset, let interval = selectedInterval else { return }
         let engine = AppleWatchStudyEngine()
-        let metrics = engine.metricsForStudy(measurements: dataset.measurements, interval: interval)
+        let metrics = comparisonMetrics
         guard !metrics.isEmpty else { return }
         isRunning = true
         error = nil
@@ -329,7 +363,12 @@ struct AppleWatchStudyView: View {
             let references = try await HealthKitReferenceReader(referenceSource: source).requestAndRead(in: interval, metrics: metrics)
             guard !Task.isCancelled else { return }
             reportSource = source
-            report = engine.study(measurements: dataset.measurements, references: references, interval: interval)
+            report = engine.study(
+                measurements: dataset.measurements,
+                references: references,
+                interval: interval,
+                metrics: Set(metrics)
+            )
         } catch is CancellationError {
             return
         } catch {
@@ -371,6 +410,29 @@ struct AppleWatchStudyView: View {
         reportSource = nil
         discoveredReferenceSources = []
         selectedReferenceSource = .appleWatch
+    }
+
+    private func metricSelectionBinding(for metric: AppleWatchStudyMetric) -> Binding<Bool> {
+        Binding(
+            get: { selectedComparisonMetrics.contains(metric) },
+            set: { isSelected in
+                if isSelected {
+                    selectedComparisonMetrics.insert(metric)
+                } else {
+                    selectedComparisonMetrics.remove(metric)
+                }
+                report = nil
+                reportSource = nil
+            }
+        )
+    }
+
+    private func selectAllAvailableMetrics() {
+        selectedComparisonMetrics = Set(availableComparisonMetrics)
+    }
+
+    private func retainAvailableMetricSelections() {
+        selectedComparisonMetrics.formIntersection(Set(availableComparisonMetrics))
     }
 
     private func datasetPeriod(_ dataset: ParsedDataset) -> DateInterval? {
