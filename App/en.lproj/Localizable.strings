@@ -169,6 +169,12 @@
 "Chiede lettura in Apple Salute, non scrive alcun campione" = "Requests Apple Health read access and does not write any samples";
 "Risultato locale" = "Local result";
 "Questo è uno studio locale: non abilita automaticamente importazioni." = "This is a local study: it does not automatically enable imports.";
+"Sintesi studio Even Health Bridge" = "Even Health Bridge study summary";
+"Sintesi studio locale" = "Local study summary";
+"Riepilogo locale senza campioni individuali" = "Local summary without individual samples";
+"Condividi sintesi" = "Share summary";
+"Condivide solo intervallo e conteggi aggregati, senza campioni individuali" = "Shares only the interval and aggregate counts, without individual samples";
+"La sintesi condivisibile contiene l'intervallo e conteggi aggregati, non campioni individuali Apple Salute." = "The shareable summary contains the interval and aggregate counts, not individual Apple Health samples.";
 "Nessun campione Apple Watch trovato nell'intervallo. Verifica l'intervallo e il permesso di lettura in Apple Salute; Apple non comunica all'app se il permesso di lettura è stato negato." = "No Apple Watch samples were found in this interval. Check the interval and read access in Apple Health; Apple does not tell the app whether read access was denied.";
 "Campioni Apple Watch trovati" = "Apple Watch samples found";
 "Il confronto segnala compatibilita temporale e numerica; non abilita automaticamente alcuna nuova importazione." = "The comparison reports time and numeric compatibility; it does not automatically enable any new import.";

@@ -21,6 +21,7 @@ private final class SyntheticArchiveMarker {}
         "Intervallo di confronto": "Comparison interval",
         "Metriche da confrontare": "Metrics to compare",
         "Cerca solo le fonti presenti nell’intervallo e per le metriche selezionate. I nomi e i dati delle fonti restano sul dispositivo e non vengono salvati dall’app.": "Searches only sources present in the selected interval and for the selected metrics. Source names and data stay on this device and are not saved by the app.",
+        "Condividi sintesi": "Share summary",
         "Permessi Salute": "Health permissions",
         "Dati e cronologia restano sull'iPhone. Nessun account, server o tracciamento. Gli archivi non vengono conservati.": "Data and history stay on iPhone. No account, server, or tracking. Archives are not retained."
     ]

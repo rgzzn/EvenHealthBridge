@@ -315,6 +315,16 @@ struct AppleWatchStudyView: View {
         Section("Risultato locale") {
             Text("Questo è uno studio locale: non abilita automaticamente importazioni.")
                 .font(.footnote).foregroundStyle(.secondary)
+            ShareLink(
+                item: shareSummary(for: report, source: source),
+                subject: Text("Sintesi studio Even Health Bridge"),
+                message: Text("Riepilogo locale senza campioni individuali")
+            ) {
+                Label("Condividi sintesi", systemImage: "square.and.arrow.up")
+            }
+            .accessibilityHint("Condivide solo intervallo e conteggi aggregati, senza campioni individuali")
+            Text("La sintesi condivisibile contiene l'intervallo e conteggi aggregati, non campioni individuali Apple Salute.")
+                .font(.footnote).foregroundStyle(.secondary)
             if report.referenceRecordCount == 0 {
                 Label(String(format: String(localized: "Nessun campione %@ trovato nell'intervallo. Verifica l'intervallo e il permesso di lettura in Apple Salute; Apple non comunica all'app se il permesso di lettura è stato negato."), locale: .current, source.displayName), systemImage: "exclamationmark.triangle")
                     .font(.footnote)
@@ -427,8 +437,7 @@ struct AppleWatchStudyView: View {
                 } else {
                     selectedComparisonMetrics.remove(metric)
                 }
-                report = nil
-                reportSource = nil
+                resetComparisonState()
             }
         )
     }
@@ -452,5 +461,38 @@ struct AppleWatchStudyView: View {
         startDate = period.start
         endDate = period.end.addingTimeInterval(1)
         didUseArchivePeriod = true
+    }
+
+    private func shareSummary(for report: AppleWatchStudyReport, source: ReferenceSourceDefinition) -> String {
+        let dateFormat = Date.FormatStyle(date: .abbreviated, time: .shortened)
+        let interval = "\(report.interval.start.formatted(dateFormat)) – \(report.interval.end.formatted(dateFormat))"
+        let header = String(localized: "Sintesi studio locale")
+        let sourceLabel = String(localized: "Fonte")
+        let periodLabel = String(localized: "Intervallo di confronto")
+        let matchedLabel = String(localized: "Corrispondenze vicine")
+        let comparableLabel = String(localized: "Record confrontabili")
+        let coverageLabel = String(localized: "Copertura del confronto")
+        let differenceLabel = String(localized: "Differenza assoluta mediana")
+        let privacy = String(localized: "Riepilogo locale senza campioni individuali")
+        let results = report.results.map { result in
+            var fields = [
+                "\(matchedLabel): \(result.matchedRecords)",
+                "\(comparableLabel): \(result.comparableEvenRecords)"
+            ]
+            if let coverage = result.coverage {
+                fields.append("\(coverageLabel): \(coverage.formatted(.percent.precision(.fractionLength(0))))")
+            }
+            if let difference = result.medianAbsoluteDifference {
+                fields.append("\(differenceLabel): \(difference.formatted(.number.precision(.fractionLength(1))))")
+            }
+            return "\(result.metric.title): \(fields.joined(separator: ", "))"
+        }
+        return ([
+            header,
+            "\(sourceLabel): \(source.displayName)",
+            "\(periodLabel): \(interval)",
+            "",
+            privacy
+        ] + results).joined(separator: "\n")
     }
 }
