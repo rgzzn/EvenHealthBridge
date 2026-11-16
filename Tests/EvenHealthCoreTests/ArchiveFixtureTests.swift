@@ -86,6 +86,10 @@ private func withArchive(_ files: [String: String], body: (URL) throws -> Void) 
     #expect(FileManager.default.fileExists(atPath: note.path))
     #expect(FileManager.default.fileExists(atPath: original.path))
     #expect(try store.discardIfOwnedCopy(original) == false)
+    try store.discardCopies()
+    #expect(!FileManager.default.fileExists(atPath: kept.path))
+
+    try Data("fixture".utf8).write(to: kept)
     #expect(try store.discardIfOwnedCopy(kept))
     #expect(!FileManager.default.fileExists(atPath: kept.path))
 }

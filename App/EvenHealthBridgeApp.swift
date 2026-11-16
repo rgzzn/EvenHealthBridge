@@ -375,6 +375,12 @@ enum LocalStore {
 struct EvenHealthBridgeApp: App {
     @State private var container = LocalStore.open()
 
+    init() {
+        // iOS can leave a document-provider copy here if the process ends before analysis starts.
+        // This is the app-owned Inbox only; the original file in Files is never touched.
+        try? FileImporterInbox.currentAppInbox()?.discardCopies()
+    }
+
     var body: some Scene {
         WindowGroup {
             if let container {
