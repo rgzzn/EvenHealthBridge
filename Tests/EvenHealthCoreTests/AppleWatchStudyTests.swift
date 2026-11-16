@@ -86,6 +86,20 @@ import Testing
     #expect(instantaneous.interval == nil)
 }
 
+@Test func studyRequestsOnlyMetricTypesPresentInItsSelectedWindow() {
+    let origin = Date(timeIntervalSince1970: 1_700_700_000)
+    let steps = measurement(kind: .steps, timestamp: origin, value: 120)
+    let heartRate = measurement(kind: .heartRate, timestamp: origin.addingTimeInterval(60), value: 70, statistic: "avg")
+    let oxygenOutsideWindow = measurement(kind: .oxygen, timestamp: origin.addingTimeInterval(120), value: 98, statistic: "avg")
+    let interval = DateInterval(start: origin, end: origin.addingTimeInterval(120))
+
+    let metrics = AppleWatchStudyEngine().metricsForStudy(
+        measurements: [steps, heartRate, oxygenOutsideWindow], interval: interval
+    )
+
+    #expect(metrics == [.steps, .heartRate])
+}
+
 @Test func studyUsesOnlyAverageHeartRateAndPairsEachWatchSampleOnce() {
     let origin = Date(timeIntervalSince1970: 1_700_000_000)
     let average = measurement(kind: .heartRate, timestamp: origin, value: 70, statistic: "avg")

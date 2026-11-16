@@ -12,12 +12,16 @@ struct HealthKitReferenceReader {
         self.referenceSource = referenceSource
     }
 
-    func requestAndRead(in interval: DateInterval) async throws -> [AppleWatchReferenceSample] {
+    func requestAndRead(
+        in interval: DateInterval,
+        metrics: [AppleWatchStudyMetric]
+    ) async throws -> [AppleWatchReferenceSample] {
         guard HKHealthStore.isHealthDataAvailable() else { throw AppleWatchStudyError.healthUnavailable }
-        try await requestReadAuthorization()
+        guard !metrics.isEmpty else { return [] }
+        try await requestReadAuthorization(for: metrics)
 
         var output: [AppleWatchReferenceSample] = []
-        for metric in AppleWatchStudyMetric.allCases {
+        for metric in metrics {
             let samples = try await samples(for: metric, in: interval)
             output += samples.compactMap { sample in
                 guard matchesReferenceSource(sample), let value = value(of: sample, metric: metric) else { return nil }
@@ -37,7 +41,7 @@ struct HealthKitReferenceReader {
     /// keeps the result in view state and no HealthKit samples or source list are persisted.
     func discoverSources(in interval: DateInterval) async throws -> [ReferenceSourceAvailability] {
         guard HKHealthStore.isHealthDataAvailable() else { throw AppleWatchStudyError.healthUnavailable }
-        try await requestReadAuthorization()
+        try await requestReadAuthorization(for: AppleWatchStudyMetric.allCases)
 
         var observations: [ReferenceSourceObservation] = []
         for metric in AppleWatchStudyMetric.allCases {
@@ -54,8 +58,8 @@ struct HealthKitReferenceReader {
         return ReferenceSourceAvailability.summarize(observations)
     }
 
-    private func requestReadAuthorization() async throws {
-        let requested = Set(AppleWatchStudyMetric.allCases.compactMap { quantityType(for: $0) as HKObjectType? })
+    private func requestReadAuthorization(for metrics: [AppleWatchStudyMetric]) async throws {
+        let requested = Set(metrics.compactMap { quantityType(for: $0) as HKObjectType? })
         try await store.requestAuthorization(toShare: [], read: requested)
     }
 
@@ -140,6 +144,11 @@ struct AppleWatchStudyView: View {
         return DateInterval(start: startDate, end: endDate)
     }
 
+    private var comparisonMetrics: [AppleWatchStudyMetric] {
+        guard let dataset, let interval = selectedInterval else { return [] }
+        return AppleWatchStudyEngine().metricsForStudy(measurements: dataset.measurements, interval: interval)
+    }
+
     var body: some View {
         Form {
             archiveSection
@@ -214,8 +223,14 @@ struct AppleWatchStudyView: View {
 
     private var studySection: some View {
         Section("Confronto") {
-            Text("Richiede la lettura di passi, calorie attive, battito, HRV e ossigenazione. Non richiede scrittura e non modifica i dati in Apple Salute.")
-                .font(.footnote).foregroundStyle(.secondary)
+            if comparisonMetrics.isEmpty {
+                Text("Nessuna metrica Even confrontabile nell'intervallo selezionato.")
+                    .font(.footnote).foregroundStyle(.secondary)
+            } else {
+                let format = String(localized: "Richiede la lettura solo di queste metriche presenti nell'archivio: %@. Non richiede scrittura e non modifica i dati in Apple Salute.")
+                Text(String(format: format, locale: .current, comparisonMetrics.map(\.title).joined(separator: ", ")))
+                    .font(.footnote).foregroundStyle(.secondary)
+            }
             Button {
                 Task { await runStudy() }
             } label: {
@@ -225,7 +240,7 @@ struct AppleWatchStudyView: View {
                     Label(String(format: String(localized: "Confronta con %@"), locale: .current, selectedReferenceSource.displayName), systemImage: selectedReferenceSource == .appleWatch ? "applewatch" : "sensor.tag.radiowaves.forward")
                 }
             }
-            .disabled(dataset == nil || selectedInterval == nil || isRunning || isDiscoveringSources)
+            .disabled(dataset == nil || selectedInterval == nil || comparisonMetrics.isEmpty || isRunning || isDiscoveringSources)
             .accessibilityHint("Chiede lettura in Apple Salute, non scrive alcun campione")
         }
     }
@@ -301,6 +316,9 @@ struct AppleWatchStudyView: View {
 
     private func runStudy() async {
         guard let dataset, let interval = selectedInterval else { return }
+        let engine = AppleWatchStudyEngine()
+        let metrics = engine.metricsForStudy(measurements: dataset.measurements, interval: interval)
+        guard !metrics.isEmpty else { return }
         isRunning = true
         error = nil
         report = nil
@@ -308,10 +326,10 @@ struct AppleWatchStudyView: View {
         defer { isRunning = false }
         do {
             let source = selectedReferenceSource
-            let references = try await HealthKitReferenceReader(referenceSource: source).requestAndRead(in: interval)
+            let references = try await HealthKitReferenceReader(referenceSource: source).requestAndRead(in: interval, metrics: metrics)
             guard !Task.isCancelled else { return }
             reportSource = source
-            report = AppleWatchStudyEngine().study(measurements: dataset.measurements, references: references, interval: interval)
+            report = engine.study(measurements: dataset.measurements, references: references, interval: interval)
         } catch is CancellationError {
             return
         } catch {

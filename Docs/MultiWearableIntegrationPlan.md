@@ -11,7 +11,7 @@ Even Health Bridge remains fully local. It does not upload Health data, retain a
 - All seven Even CSV categories are parsed and previewed.
 - Only validated sleep stages can be written today.
 - Apple Watch comparison is read-only and source-scoped using the HealthKit source revision product type, with a narrow historical fallback for samples without a product type. The Study tab can also discover other sources found in the selected window, show only their metric-type and sample-count availability, and let the user select one for a local comparison. A discovered source uses its exact product type when available, so a similarly named device cannot be included accidentally.
-- The comparison engine is source-neutral, and the HealthKit reader accepts a `ReferenceSourceDefinition`. A future wearable must provide a documented source product type or an intentionally narrow historical marker.
+- The comparison engine is source-neutral, and the HealthKit reader accepts a `ReferenceSourceDefinition`. Each comparison requests read access only to metric types represented in the selected Even archive window. A future wearable must provide a documented source product type or an intentionally narrow historical marker.
 - Reference samples preserve their actual end date when HealthKit provides one.
 - `ConservativeOverlayPlanner` accepts a complete interval only when it is eligible and has no overlap with existing coverage. It never splits, interpolates, or redistributes a value across a partially uncovered interval.
 

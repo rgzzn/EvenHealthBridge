@@ -143,7 +143,7 @@
 "Quando confermi l'importazione, l'app chiede accesso al sonno in lettura e scrittura. Interroga soltanto i campioni che ha creato per evitare duplicati dopo un'interruzione." = "When you confirm import, the app requests read and write access to sleep. It queries only samples it created to prevent duplicates after an interruption.";
 "Aggiorna stato" = "Refresh status";
 "Studio e fonti di confronto" = "Study and comparison sources";
-"La scheda Studio richiede, solo quando avvii un confronto, la lettura di passi, calorie attive, battito, HRV e ossigenazione. Può confrontare Apple Watch o un’altra fonte che selezioni nell’intervallo scelto. Non scrive, modifica o conserva campioni Apple Salute." = "The Study tab requests read access to steps, active calories, heart rate, HRV, and oxygen saturation only when you start a comparison. It can compare Apple Watch or another source you select in the chosen interval. It does not write, modify, or store Apple Health samples.";
+"La scheda Studio richiede, solo quando avvii un confronto, la lettura delle metriche effettivamente presenti nell'archivio Even e nell'intervallo scelto. Può confrontare Apple Watch o un’altra fonte che selezioni. Non scrive, modifica o conserva campioni Apple Salute." = "The Study tab requests read access only to metrics actually present in the Even archive and selected interval, and only when you start a comparison. It can compare Apple Watch or another source you select. It does not write, modify, or store Apple Health samples.";
 "Se il permesso è negato" = "If permission is denied";
 "Apri le impostazioni di Apple Salute e abilita la scrittura dei dati sul sonno per Even Health Bridge." = "Open Apple Health settings and allow Even Health Bridge to write sleep data.";
 "Archivio Even" = "Even archive";
@@ -158,7 +158,8 @@
 "I dati Apple Watch vengono interrogati solo in questo intervallo e non sono salvati nel database dell'app." = "Apple Watch data is queried only in this interval and is not saved in the app database.";
 "I dati della fonte selezionata vengono interrogati solo in questo intervallo e non sono salvati nel database dell'app." = "Data from the selected source is queried only in this interval and is not saved in the app database.";
 "Confronto Apple Watch" = "Apple Watch comparison";
-"Richiede la lettura di passi, calorie attive, battito, HRV e ossigenazione. Non richiede scrittura e non modifica i dati in Apple Salute." = "Requires read access to steps, active calories, heart rate, HRV, and oxygen saturation. It does not require write access or modify Apple Health data.";
+"Richiede la lettura solo di queste metriche presenti nell'archivio: %@. Non richiede scrittura e non modifica i dati in Apple Salute." = "Requires read access only to these metrics present in the archive: %@. It does not require write access or modify Apple Health data.";
+"Nessuna metrica Even confrontabile nell'intervallo selezionato." = "No Even metrics can be compared in the selected interval.";
 "Confronto in corso" = "Comparison in progress";
 "Confronta con Apple Watch" = "Compare with Apple Watch";
 "Chiede lettura in Apple Salute, non scrive alcun campione" = "Requests Apple Health read access and does not write any samples";

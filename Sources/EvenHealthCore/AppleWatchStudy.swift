@@ -293,6 +293,20 @@ public struct SourceCoverageEngine: Sendable {
         self.contracts = contracts
     }
 
+    /// Returns only the HealthKit metric types represented by the current Even archive in the
+    /// requested half-open study window. This narrows a read-authorization request; it never
+    /// changes a category's write eligibility.
+    public func metricsForStudy(
+        measurements: [HealthMeasurement],
+        interval: DateInterval
+    ) -> [SourceCoverageMetric] {
+        contracts.compactMap { contract in
+            measurements.contains {
+                $0.kind == contract.measurementKind && isInStudyInterval($0.timestamp, interval: interval)
+            } ? contract.metric : nil
+        }
+    }
+
     public func analyze(
         measurements: [HealthMeasurement],
         references: [SourceCoverageReferenceSample],
@@ -419,6 +433,13 @@ public struct AppleWatchStudyEngine: Sendable {
 
     public init(coverage: SourceCoverageEngine = .init()) {
         self.coverage = coverage
+    }
+
+    public func metricsForStudy(
+        measurements: [HealthMeasurement],
+        interval: DateInterval
+    ) -> [AppleWatchStudyMetric] {
+        coverage.metricsForStudy(measurements: measurements, interval: interval)
     }
 
     public func study(
