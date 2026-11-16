@@ -236,6 +236,9 @@ final class ImportCoordinator {
         writtenCount = nil
         progress = nil
         defer { isWorking = false }
+        let inbox = FileImporterInbox.currentAppInbox()
+        try? inbox?.discardCopies(except: url)
+        defer { try? inbox?.discardIfOwnedCopy(url) }
         let access = url.startAccessingSecurityScopedResource()
         defer { if access { url.stopAccessingSecurityScopedResource() } }
         do {
@@ -437,8 +440,7 @@ struct RootView: View {
                 await coordinator.analyze(archive.url)
             }
         }
-        .onAppear(perform: applyPendingIntentDestination)
-        .onChange(of: intentRouter.pendingRoute) { _, _ in
+        .onChange(of: intentRouter.pendingRoute?.id, initial: true) { _, _ in
             applyPendingIntentDestination()
         }
     }

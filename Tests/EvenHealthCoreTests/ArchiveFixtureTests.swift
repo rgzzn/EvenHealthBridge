@@ -66,6 +66,30 @@ private func withArchive(_ files: [String: String], body: (URL) throws -> Void) 
     #expect(IncomingArchive(url: URL(string: "https://example.com/even-export.zip")!) == nil)
 }
 
+@Test func fileImporterInboxDeletesOnlyItsOwnZIPCopies() throws {
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    let inbox = root.appendingPathComponent("Inbox", isDirectory: true)
+    try FileManager.default.createDirectory(at: inbox, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: root) }
+
+    let first = inbox.appendingPathComponent("first.zip")
+    let kept = inbox.appendingPathComponent("kept.zip")
+    let note = inbox.appendingPathComponent("note.txt")
+    let original = root.appendingPathComponent("original.zip")
+    for url in [first, kept, note, original] { try Data("fixture".utf8).write(to: url) }
+
+    let store = FileImporterInbox(folder: inbox)
+    try store.discardCopies(except: kept)
+
+    #expect(!FileManager.default.fileExists(atPath: first.path))
+    #expect(FileManager.default.fileExists(atPath: kept.path))
+    #expect(FileManager.default.fileExists(atPath: note.path))
+    #expect(FileManager.default.fileExists(atPath: original.path))
+    #expect(try store.discardIfOwnedCopy(original) == false)
+    #expect(try store.discardIfOwnedCopy(kept))
+    #expect(!FileManager.default.fileExists(atPath: kept.path))
+}
+
 @Test func sevenCSVFixtureAndValidatedSleep() throws {
     let time = "2026-10-25T02:30:00+02:00"
     let sleepStart = "2026-10-25T01:00:00+02:00"

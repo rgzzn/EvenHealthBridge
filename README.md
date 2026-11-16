@@ -9,7 +9,7 @@ A local iPhone app that analyses Even Realities R1 ZIP exports and imports verif
 3. Build to an iPhone running iOS 27. HealthKit may be unavailable in Simulator.
 4. Export a ZIP archive from the Even Realities app. Open it from **Select ZIP archive** in the app, or use **Open in Even Health Bridge** from Files or the Share sheet when iOS displays it. Review the preview and choose **Import sleep into Apple Health**. The authorization prompt is shown only at that point.
 
-The app registers the ZIP type as an openable document and reads URLs with security-scoped access and file coordination, including URLs from Files providers. It does not retain an archive copy. Import sessions and saved sample identifiers stay in on-device SwiftData, with CloudKit explicitly disabled and iOS Complete data protection. There is no server, account, or analytics.
+The app registers the ZIP type as an openable document and reads URLs with security-scoped access and file coordination, including URLs from Files providers. It does not retain an archive copy: ZIP copies that iOS places in the app-owned `Documents/Inbox` are discarded after analysis, and earlier app-owned inbox ZIP copies are cleared before the next analysis. The original file in Files is never changed. Import sessions and saved sample identifiers stay in on-device SwiftData, with CloudKit explicitly disabled and iOS Complete data protection. There is no server, account, or analytics.
 
 If the local SwiftData store cannot be opened, the app displays an error and lets the user retry. It never creates an empty temporary store: without existing identifiers it could not safely prevent duplicate Health writes.
 
