@@ -23,19 +23,24 @@ public struct ReferenceSourceDefinition: Sendable, Hashable, Identifiable {
     /// A person-selected source uses the complete product type reported by HealthKit. It must not
     /// widen into another device just because their product type shares a textual prefix.
     public let requiresExactProductType: Bool
+    /// A source chosen from the local discovery list must also use an exact historical name when
+    /// HealthKit has no product type. Built-in source definitions can retain a documented marker.
+    public let requiresExactHistoricalSourceName: Bool
 
     public init(
         id: String,
         displayName: String,
         productTypePrefix: String,
         historicalSourceNameMarker: String,
-        requiresExactProductType: Bool = false
+        requiresExactProductType: Bool = false,
+        requiresExactHistoricalSourceName: Bool = false
     ) {
         self.id = id
         self.displayName = displayName
         self.productTypePrefix = productTypePrefix
         self.historicalSourceNameMarker = historicalSourceNameMarker
         self.requiresExactProductType = requiresExactProductType
+        self.requiresExactHistoricalSourceName = requiresExactHistoricalSourceName
     }
 
     public func matches(_ identity: ReferenceSourceIdentity) -> Bool {
@@ -51,6 +56,10 @@ public struct ReferenceSourceDefinition: Sendable, Hashable, Identifiable {
 
         guard !historicalSourceNameMarker.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             return false
+        }
+        if requiresExactHistoricalSourceName {
+            return identity.sourceName.trimmingCharacters(in: .whitespacesAndNewlines)
+                .caseInsensitiveCompare(historicalSourceNameMarker.trimmingCharacters(in: .whitespacesAndNewlines)) == .orderedSame
         }
         return identity.sourceName.localizedCaseInsensitiveContains(historicalSourceNameMarker)
     }
@@ -76,7 +85,8 @@ public struct ReferenceSourceDefinition: Sendable, Hashable, Identifiable {
             displayName: sourceName,
             productTypePrefix: usableProductType ?? "",
             historicalSourceNameMarker: sourceName,
-            requiresExactProductType: usableProductType != nil
+            requiresExactProductType: usableProductType != nil,
+            requiresExactHistoricalSourceName: true
         )
     }
 }
