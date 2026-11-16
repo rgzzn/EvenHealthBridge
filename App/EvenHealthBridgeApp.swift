@@ -427,14 +427,14 @@ struct RootView: View {
             .tag(3)
         }
         .onOpenURL { url in
-            guard url.isFileURL, url.pathExtension.lowercased() == "zip" else { return }
+            guard let archive = IncomingArchive(url: url) else { return }
             selectedTab = 0
             let previous = analysisTask
             analysisTask = Task {
                 previous?.cancel()
                 await previous?.value
                 guard !Task.isCancelled else { return }
-                await coordinator.analyze(url)
+                await coordinator.analyze(archive.url)
             }
         }
         .onAppear(perform: applyPendingIntentDestination)

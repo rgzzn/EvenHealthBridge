@@ -60,6 +60,12 @@ private func withArchive(_ files: [String: String], body: (URL) throws -> Void) 
     #expect(Int64(SharedArchiveFileStore.defaultMaximumArchiveBytes) == ZIPExtractionService().maxArchiveBytes)
 }
 
+@Test func incomingArchiveAcceptsOnlyLocalZIPURLs() {
+    #expect(IncomingArchive(url: URL(fileURLWithPath: "/tmp/even-export.ZIP"))?.url.path == "/tmp/even-export.ZIP")
+    #expect(IncomingArchive(url: URL(fileURLWithPath: "/tmp/even-export.csv")) == nil)
+    #expect(IncomingArchive(url: URL(string: "https://example.com/even-export.zip")!) == nil)
+}
+
 @Test func sevenCSVFixtureAndValidatedSleep() throws {
     let time = "2026-10-25T02:30:00+02:00"
     let sleepStart = "2026-10-25T01:00:00+02:00"
