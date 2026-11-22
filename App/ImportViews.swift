@@ -301,8 +301,8 @@ private struct CategorySummaryRow: View {
             String(localized: "HRV in sola lettura: il valore Even non è stato confermato come SDNN.")
         case .requiresOxygenSemanticsAndInterval:
             String(localized: "Ossigenazione in sola lettura: unità e metodo di campionamento o aggregazione richiedono conferma.")
-        case .requiresCompatibleTemperatureSemantics:
-            String(localized: "Temperatura cutanea in sola lettura: una deviazione dalla baseline non è ancora compatibile con un tipo HealthKit.")
+        case .requiresReadOnlyTemperatureTrendStudy:
+            String(localized: "Variazione di temperatura notturna: Even esporta una deviazione dalla propria baseline. Puoi studiarne la presenza nel tempo, ma non importarla: il tipo Apple più vicino è in sola lettura e registra una temperatura assoluta del polso.")
         }
     }
 }

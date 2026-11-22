@@ -11,7 +11,10 @@ public enum HealthImportReadiness: String, Sendable, Codable, CaseIterable {
     case requiresHeartRateAggregationInterval
     case requiresConfirmedHRVMetric
     case requiresOxygenSemanticsAndInterval
-    case requiresCompatibleTemperatureSemantics
+    /// Even exports a nightly deviation from its own baseline. Apple’s closest sleep-temperature
+    /// type contains absolute wrist temperatures and is read-only, so this category supports a
+    /// local temporal study only, never a HealthKit write.
+    case requiresReadOnlyTemperatureTrendStudy
 
     public static func current(for kind: MeasurementKind) -> Self {
         switch kind {
@@ -21,7 +24,7 @@ public enum HealthImportReadiness: String, Sendable, Codable, CaseIterable {
         case .heartRate: .requiresHeartRateAggregationInterval
         case .hrv: .requiresConfirmedHRVMetric
         case .oxygen: .requiresOxygenSemanticsAndInterval
-        case .skinTemperature: .requiresCompatibleTemperatureSemantics
+        case .skinTemperature: .requiresReadOnlyTemperatureTrendStudy
         }
     }
 

@@ -117,6 +117,29 @@ import Testing
     #expect(report.results.map(\.metric) == [.heartRate])
 }
 
+@Test func temperatureDeviationStudyIsTemporalOnlyAndNeverWriteEligible() {
+    let origin = Date(timeIntervalSince1970: 1_700_900_000)
+    let even = measurement(kind: .skinTemperature, timestamp: origin, value: 1)
+    let reference = AppleWatchReferenceSample(
+        metric: .temperatureDeviation,
+        timestamp: origin.addingTimeInterval(6 * 60 * 60),
+        value: 0
+    )
+    let report = AppleWatchStudyEngine().study(
+        measurements: [even],
+        references: [reference],
+        interval: DateInterval(start: origin.addingTimeInterval(-1), end: origin.addingTimeInterval(12 * 60 * 60)),
+        metrics: [.temperatureDeviation]
+    )
+    let result = report.results.first
+
+    #expect(result?.metric == .temperatureDeviation)
+    #expect(result?.matchedRecords == 1)
+    #expect(result?.medianAbsoluteDifference == nil)
+    #expect(result?.contract.comparisonMode == .temporalPresence)
+    #expect(result?.contract.writeStatus == .blockedByReadOnlyTemperatureType)
+}
+
 @Test func studyUsesOnlyAverageHeartRateAndPairsEachWatchSampleOnce() {
     let origin = Date(timeIntervalSince1970: 1_700_000_000)
     let average = measurement(kind: .heartRate, timestamp: origin, value: 70, statistic: "avg")

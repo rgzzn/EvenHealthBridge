@@ -35,7 +35,7 @@ Even Health Bridge remains fully local. It does not upload Health data, retain a
 | Heart rate | `heartRate` | Unit and aggregation window behind `avg` | Blocked |
 | HRV | `heartRateVariabilitySDNN` | Confirmation that Even reports SDNN, not another HRV metric | Blocked |
 | Oxygen saturation | `oxygenSaturation` | Unit, aggregation method, and interval | Blocked |
-| Temperature | No target selected | Export meaning compatible with a HealthKit type; R1 support describes a sleep temperature deviation from baseline, not body temperature | Blocked |
+| Temperature variation | No writable target | R1 exports a nightly deviation from its own baseline. Apple’s nearest type is absolute sleeping wrist temperature and is read-only. A local temporal study is available; all HealthKit writes remain blocked. | Research only |
 
 ## Current vendor evidence review
 

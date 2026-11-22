@@ -105,6 +105,7 @@ public enum SourceCoverageMetric: String, CaseIterable, Sendable, Identifiable {
     case heartRate
     case hrv
     case oxygen
+    case temperatureDeviation
 
     public var id: String { rawValue }
 
@@ -115,6 +116,7 @@ public enum SourceCoverageMetric: String, CaseIterable, Sendable, Identifiable {
         case .heartRate: String(localized: "Frequenza cardiaca")
         case .hrv: String(localized: "Variabilita cardiaca")
         case .oxygen: String(localized: "Ossigenazione")
+        case .temperatureDeviation: String(localized: "Variazione di temperatura notturna")
         }
     }
 }
@@ -173,6 +175,7 @@ public enum SourceCoverageWriteStatus: String, Sendable {
     case blockedByUnknownInterval
     case blockedByUnknownMetric
     case blockedByUnverifiedSemantics
+    case blockedByReadOnlyTemperatureType
 }
 
 public enum SourceCoverageComparisonMode: String, Sendable {
@@ -222,7 +225,13 @@ public struct SourceCoverageMetricContract: Sendable {
               writeStatus: .blockedByUnknownMetric),
         .init(metric: .oxygen, measurementKind: .oxygen, matchingTolerance: 70 * 60,
               comparisonMode: .descriptiveNumericDifference, requiresAverageStatistic: true,
-              writeStatus: .blockedByUnverifiedSemantics)
+              writeStatus: .blockedByUnverifiedSemantics),
+        // Even reports a nightly deviation from its own baseline. The closest Apple type is one
+        // absolute wrist-temperature sample per night and is read-only, so only a broad temporal
+        // co-occurrence study is allowed here; no value comparison or HealthKit write is valid.
+        .init(metric: .temperatureDeviation, measurementKind: .skinTemperature, matchingTolerance: 12 * 60 * 60,
+              comparisonMode: .temporalPresence, requiresAverageStatistic: false,
+              writeStatus: .blockedByReadOnlyTemperatureType)
     ]
 }
 

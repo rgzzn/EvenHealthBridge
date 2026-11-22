@@ -14,5 +14,5 @@ import Testing
     #expect(HealthImportReadiness.current(for: .heartRate) == .requiresHeartRateAggregationInterval)
     #expect(HealthImportReadiness.current(for: .hrv) == .requiresConfirmedHRVMetric)
     #expect(HealthImportReadiness.current(for: .oxygen) == .requiresOxygenSemanticsAndInterval)
-    #expect(HealthImportReadiness.current(for: .skinTemperature) == .requiresCompatibleTemperatureSemantics)
+    #expect(HealthImportReadiness.current(for: .skinTemperature) == .requiresReadOnlyTemperatureTrendStudy)
 }

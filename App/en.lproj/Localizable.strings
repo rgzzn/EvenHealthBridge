@@ -35,6 +35,7 @@
 "Analisi o autorizzazione in corso" = "Analysis or authorization in progress";
 "Anteprima" = "Preview";
 "Periodo" = "Period";
+"%@ – %@" = "%1$@ – %2$@";
 "Sonno importabile" = "Importable sleep";
 "Nuove fasi" = "New stages";
 "Già importate" = "Already imported";
@@ -70,6 +71,7 @@
 "Ossigenazione" = "Oxygen saturation";
 "Sonno" = "Sleep";
 "Temperatura" = "Temperature";
+"Variazione di temperatura notturna" = "Nightly temperature variation";
 "Misurazioni analizzate" = "Measurements analyzed";
 "Validati nello ZIP" = "Validated in ZIP";
 "Validi nel formato ZIP" = "Valid in ZIP format";
@@ -93,6 +95,7 @@
 "HRV in sola lettura: il valore Even non è stato confermato come SDNN." = "HRV is read-only: the Even value has not been confirmed as SDNN.";
 "Ossigenazione in sola lettura: unità e metodo di campionamento o aggregazione richiedono conferma." = "Oxygen saturation is read-only: its unit and sampling or aggregation method require confirmation.";
 "Temperatura cutanea in sola lettura: una deviazione dalla baseline non è ancora compatibile con un tipo HealthKit." = "Skin temperature is read-only: a baseline deviation is not yet compatible with a HealthKit type.";
+"Variazione di temperatura notturna: Even esporta una deviazione dalla propria baseline. Puoi studiarne la presenza nel tempo, ma non importarla: il tipo Apple più vicino è in sola lettura e registra una temperatura assoluta del polso." = "Nightly temperature variation: Even exports a deviation from its own baseline. You can study its presence over time, but cannot import it: the closest Apple type is read-only and records an absolute wrist temperature.";
 "%@ misurazioni · %@ nuove · %@ duplicate · %@ escluse" = "%1$@ measurements · %2$@ new · %3$@ duplicates · %4$@ excluded";
 "%@ misurazioni · sola lettura · %@ duplicate · %@ escluse" = "%1$@ measurements · read only · %2$@ duplicates · %3$@ excluded";
 "Veglia" = "Awake";
@@ -193,6 +196,7 @@
 "Mostra la copertura temporale, non una differenza numerica: l'intervallo del record Even non e ancora documentato." = "Shows time coverage, not a numeric difference: the Even record interval is not yet documented.";
 "Anche una buona correlazione non dimostra che l'HRV Even sia SDNN: resta escluso dall'importazione." = "Even a strong correlation does not prove that Even HRV is SDNN, so it remains excluded from import.";
 "La metrica HRV Even non è stata confermata come SDNN: il report mostra solo presenza temporale e resta esclusa dall'importazione." = "Even HRV has not been confirmed as SDNN: this report shows temporal presence only, and it remains excluded from import.";
+"Even esporta una variazione notturna dalla propria baseline; Apple Watch registra una temperatura assoluta del polso e non consente di scrivere quel tipo. Il report verifica soltanto la presenza temporale entro una finestra di ricerca di dodici ore e non abilita importazioni." = "Even exports a nightly variation from its own baseline; Apple Watch records an absolute wrist temperature and does not permit writing that type. This report checks temporal presence only within a twelve-hour research window and does not enable imports.";
 "Questo confronto non identifica lacune da riempire né modifica i dati in Apple Salute." = "This comparison does not identify gaps to fill or modify Apple Health data.";
 "Impossibile leggere i dati Apple Watch: %@" = "Unable to read Apple Watch data: %@";
 "Impossibile leggere i dati della fonte: %@" = "Unable to read data from the source: %@";

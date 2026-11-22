@@ -85,6 +85,7 @@ struct HealthKitReferenceReader {
         case .heartRate: identifier = .heartRate
         case .hrv: identifier = .heartRateVariabilitySDNN
         case .oxygen: identifier = .oxygenSaturation
+        case .temperatureDeviation: identifier = .appleSleepingWristTemperature
         }
         return HKObjectType.quantityType(forIdentifier: identifier)
     }
@@ -110,6 +111,11 @@ struct HealthKitReferenceReader {
         case .oxygen:
             // HealthKit represents 98% as 0.98 in HKUnit.percent(); Even exports 98.
             value = sample.quantity.doubleValue(for: .percent()) * 100
+        case .temperatureDeviation:
+            // Apple supplies an absolute wrist temperature while Even supplies a deviation from
+            // an undisclosed personal baseline. The study therefore retains temporal presence
+            // only and deliberately never reads, compares, or exports the Apple value.
+            value = 0
         }
         guard value.isFinite, value >= 0 else { return nil }
         return value
@@ -353,6 +359,10 @@ struct AppleWatchStudyView: View {
                     }
                     if result.metric == .hrv {
                         Text("La metrica HRV Even non è stata confermata come SDNN: il report mostra solo presenza temporale e resta esclusa dall'importazione.")
+                            .font(.footnote).foregroundStyle(.secondary)
+                    }
+                    if result.metric == .temperatureDeviation {
+                        Text("Even esporta una variazione notturna dalla propria baseline; Apple Watch registra una temperatura assoluta del polso e non consente di scrivere quel tipo. Il report verifica soltanto la presenza temporale entro una finestra di ricerca di dodici ore e non abilita importazioni.")
                             .font(.footnote).foregroundStyle(.secondary)
                     }
                 }
