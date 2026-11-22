@@ -160,4 +160,17 @@ import Testing
     #expect(sleep?.new == 25)
     #expect(sleep?.duplicates == 25)
     #expect(sleep?.excluded == 304)
+
+    // The real archive is an analysis fixture only. Its reporting cadence must
+    // never be promoted into a HealthKit interval or an implied unit/semantic.
+    let steps = dataset.measurements.filter { $0.kind == .steps }
+    let calories = dataset.measurements.filter { $0.kind == .calories }
+    #expect(!steps.isEmpty)
+    #expect(!calories.isEmpty)
+    #expect(steps.allSatisfy { $0.originalUnit == nil && $0.semantics == nil &&
+        $0.intervalEnd == nil && !$0.hasExplicitIntervalStart })
+    #expect(calories.allSatisfy { $0.originalUnit == nil && $0.semantics == nil &&
+        $0.intervalEnd == nil && !$0.hasExplicitIntervalStart })
+    #expect(QuantityImportPlanner().plan(dataset.measurements, kind: .steps, imported: []).candidates.isEmpty)
+    #expect(QuantityImportPlanner().plan(dataset.measurements, kind: .activeEnergy, imported: []).candidates.isEmpty)
 }
