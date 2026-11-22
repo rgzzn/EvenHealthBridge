@@ -13,6 +13,7 @@
     <key>CFBundleVersion</key><string>$(CURRENT_PROJECT_VERSION)</string>
     <key>NSHealthUpdateUsageDescription</key><string>Salva in Apple Salute solo sonno, passi o calorie attive Even che hai scelto di importare e che hanno semantica verificata.</string>
     <key>NSHealthShareUsageDescription</key><string>Verifica soltanto i campioni creati da Even Health Bridge per evitare duplicati e confronta localmente i dati Even con Apple Watch durante uno studio che hai avviato.</string>
+    <key>UILaunchStoryboardName</key><string>LaunchScreen</string>
     <key>LSSupportsOpeningDocumentsInPlace</key><true/>
     <key>CFBundleDocumentTypes</key>
     <array>
