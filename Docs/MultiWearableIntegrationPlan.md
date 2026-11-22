@@ -41,7 +41,7 @@ Even Health Bridge remains fully local. It does not upload Health data, retain a
 
 The current Even support pages describe steps as a daily total, heart rate in beats per minute, active calories as excluding resting metabolic burn, and SpO₂ as oxygen-related blood data. They also state continuous collection and periodic synchronization. This confirms the user-facing categories, but it does **not** specify what one exported CSV row represents, its canonical unit, the `min`/`max`/`avg` statistical window, or the start and end of that row’s measurement interval. Therefore it does not change any write gate.
 
-Rechecked on 2026-11-15: the export article confirms only that the downloaded archive contains CSV files. The dashboard article describes heart rate and blood oxygen as showing a most recent value and an average, but still does not define the statistical window or the representation of an exported row. Neither source unblocks a HealthKit write.
+Rechecked on 2026-11-22: the export article confirms only that the downloaded archive contains CSV files. The Steps and Active Calories articles say the ring continuously collects data and synchronizes the latest data every ten minutes when connected; they define the user-facing daily step total and active calories excluding resting metabolic burn, but still do not define a CSV row's unit, delta/cumulative representation, start, or end. Synchronization frequency is not a HealthKit sample duration. Neither source unblocks a HealthKit write.
 
 - [Export health data](https://support.evenrealities.com/hc/en-us/articles/17995748835599-Export-Your-Health-Data)
 - [Dashboard](https://support.evenrealities.com/hc/en-us/articles/14269247458319-Dashboard)
