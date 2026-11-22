@@ -1,1 +1,4 @@
 /* Italian localization of the app's Info.plist values. */
+"NSHealthUpdateUsageDescription" = "Salva in Apple Salute solo sonno, passi o calorie attive Even che scegli di importare e che hanno semantica verificata.";
+"NSHealthShareUsageDescription" = "Verifica soltanto i campioni creati da Even Health Bridge per evitare duplicati e confronta localmente i dati Even con Apple Watch durante uno studio che avvii tu.";
+"CFBundleTypeName" = "Archivio ZIP Even Health";

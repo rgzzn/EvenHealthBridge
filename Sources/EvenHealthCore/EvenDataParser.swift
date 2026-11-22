@@ -32,6 +32,12 @@ public struct HealthMeasurement: Sendable, Codable, Identifiable {
     public let originalUnit: String?
     public let canonicalUnit: String?
     public let statistic: String?
+    /// Vendor-declared value meaning, such as an interval delta. This is separate
+    /// from `statistic` (`min`/`max`/`avg`) and is required for quantity writers.
+    public let semantics: String?
+    /// True only when the CSV supplied an explicit `start_ts` which became
+    /// `timestamp`. A sync cadence never sets this flag.
+    public let hasExplicitIntervalStart: Bool
     public let intervalEnd: Date?
     public let sleepStage: Int?
     public let sessionEnd: Date?
@@ -41,7 +47,8 @@ public struct HealthMeasurement: Sendable, Codable, Identifiable {
     public init(id: String, kind: MeasurementKind, timestamp: Date, originalTimestamp: String,
                 source: String, value: Decimal?, components: [String: Decimal], originalUnit: String?,
                 canonicalUnit: String?, statistic: String?, intervalEnd: Date?, sleepStage: Int?,
-                sessionEnd: Date?, provenance: String, validation: ImportValidation) {
+                sessionEnd: Date?, provenance: String, validation: ImportValidation,
+                semantics: String? = nil, hasExplicitIntervalStart: Bool = false) {
         self.id = id
         self.kind = kind
         self.timestamp = timestamp
@@ -52,6 +59,8 @@ public struct HealthMeasurement: Sendable, Codable, Identifiable {
         self.originalUnit = originalUnit
         self.canonicalUnit = canonicalUnit
         self.statistic = statistic
+        self.semantics = semantics
+        self.hasExplicitIntervalStart = hasExplicitIntervalStart
         self.intervalEnd = intervalEnd
         self.sleepStage = sleepStage
         self.sessionEnd = sessionEnd
@@ -111,13 +120,21 @@ public struct EvenDataParser: Sendable {
                         measurements += stages
                         return
                     }
-                    guard let time = row["timestamp"], let date = Self.parseDate(time) else {
+                    guard let time = row["timestamp"], let reportedDate = Self.parseDate(time) else {
                         let format = String(localized: "%@: record %@ con timestamp non valido")
                         addWarning(String(format: format, locale: .current, filename, String(recordNumber)))
                         return
                     }
+                    let startText = row["start_ts"]?.trimmingCharacters(in: .whitespacesAndNewlines)
+                    let hasExplicitStart = startText?.isEmpty == false
+                    let explicitStart = startText.flatMap(Self.parseDate)
+                    let date = explicitStart ?? reportedDate
                     let source = row["source"] ?? "unknown"
                     let statistic = row["ty"]
+                    let semantics = ["value_semantics", "semantics", "value_type"].lazy.compactMap { key -> String? in
+                        guard let value = row[key]?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty else { return nil }
+                        return value
+                    }.first
                     let value = row["value"].flatMap { Decimal(string: $0, locale: Locale(identifier: "en_US_POSIX")) }
                     let originalUnit = ["unit", "units"].lazy.compactMap { key -> String? in
                         guard let value = row[key]?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty else { return nil }
@@ -129,6 +146,7 @@ public struct EvenDataParser: Sendable {
                         }) : [:]
                     var validation: ImportValidation = .ambiguousSemantics
                     if kind != .sleep && value == nil { validation = .malformed }
+                    if hasExplicitStart && explicitStart == nil { validation = .malformed }
                     if kind == .calories && ["resting", "active"].contains(where: { key in
                         guard let text = row[key], !text.isEmpty else { return false }
                         return components[key] == nil
@@ -137,12 +155,24 @@ public struct EvenDataParser: Sendable {
                     if kind == .oxygen, let value, (value < 0 || value > 100) { validation = .implausible }
                     if kind == .heartRate, let value, (value < 20 || value > 250) { validation = .implausible }
                     let end = row["end_ts"].flatMap(Self.parseDate)
+                    if let endText = row["end_ts"]?.trimmingCharacters(in: .whitespacesAndNewlines),
+                       !endText.isEmpty, end == nil { validation = .malformed }
                     let identity = [kind.rawValue, String(date.timeIntervalSince1970), statistic ?? "", row["start_ts"] ?? "", row["end_ts"] ?? ""].joined(separator: "|")
                     let id = SHA256.hash(data: Data(identity.utf8)).map { String(format: "%02x", $0) }.joined()
                     guard measurements.count < maxMeasurements else {
                         throw EvenParserError.tooManyMeasurements(limit: maxMeasurements)
                     }
-                    measurements.append(.init(id: id, kind: kind, timestamp: date, originalTimestamp: time, source: source, value: value, components: components, originalUnit: originalUnit, canonicalUnit: nil, statistic: statistic, intervalEnd: end, sleepStage: nil, sessionEnd: nil, provenance: filename, validation: validation))
+                    var measurement = HealthMeasurement(
+                        id: id, kind: kind, timestamp: date, originalTimestamp: startText ?? time,
+                        source: source, value: value, components: components, originalUnit: originalUnit,
+                        canonicalUnit: nil, statistic: statistic, intervalEnd: end, sleepStage: nil,
+                        sessionEnd: nil, provenance: filename, validation: validation,
+                        semantics: semantics, hasExplicitIntervalStart: hasExplicitStart
+                    )
+                    if validation == .ambiguousSemantics && (kind == .steps || kind == .calories) {
+                        measurement.validation = QuantityMappingContract.validation(for: measurement)
+                    }
+                    measurements.append(measurement)
                 }
             } catch is CSVError {
                 let format = String(localized: "%@: intestazione o codifica CSV non valida")
@@ -223,11 +253,14 @@ public struct MeasurementDeduplicator: Sendable {
 
     public func resolve(_ input: [HealthMeasurement]) -> [HealthMeasurement] {
         var seen: [String: HealthMeasurement] = [:]
+        var preferredIndex: [String: Int] = [:]
         var observedComponents: [String: [String: Decimal]] = [:]
         var conflictingIDs = Set<String>()
-        for item in input {
+        for (index, item) in input.enumerated() {
             if let previous = seen[item.id] {
-                if !sameMeasurement(previous, item) { conflictingIDs.insert(item.id) }
+                if !sameMeasurement(previous, item) && !sameActiveEnergyRepresentation(previous, item) {
+                    conflictingIDs.insert(item.id)
+                }
                 for (key, value) in item.components {
                     if let observed = observedComponents[item.id]?[key], observed != value {
                         conflictingIDs.insert(item.id)
@@ -235,8 +268,13 @@ public struct MeasurementDeduplicator: Sendable {
                         observedComponents[item.id, default: [:]][key] = value
                     }
                 }
+                if prefers(item, over: previous) {
+                    seen[item.id] = item
+                    preferredIndex[item.id] = index
+                }
             } else {
                 seen[item.id] = item
+                preferredIndex[item.id] = index
                 observedComponents[item.id] = item.components
             }
         }
@@ -278,11 +316,10 @@ public struct MeasurementDeduplicator: Sendable {
         for (id, variants) in shapesByID where variants.count > 1 {
             if let session = sessionByID[id] { disagreements.insert(session) }
         }
-        var repeated = Set<String>()
-        return input.map { item in
+        return input.enumerated().map { index, item in
             var result = item
             if conflictingIDs.contains(item.id) { result.validation = .conflict }
-            else if !repeated.insert(item.id).inserted { result.validation = .duplicate }
+            else if preferredIndex[item.id] != index { result.validation = .duplicate }
             if item.kind == .sleep, let end = item.sessionEnd, let start = EvenDataParser.parseDate(item.originalTimestamp) {
                 let session = SleepInterval(start: start, end: end)
                 if overlapping.contains(session) || disagreements.contains(session) { result.validation = .conflict }
@@ -295,8 +332,38 @@ public struct MeasurementDeduplicator: Sendable {
         lhs.kind == rhs.kind && lhs.timestamp == rhs.timestamp && lhs.value == rhs.value &&
         lhs.originalUnit == rhs.originalUnit &&
         lhs.canonicalUnit == rhs.canonicalUnit && lhs.statistic == rhs.statistic &&
+        lhs.semantics == rhs.semantics && lhs.hasExplicitIntervalStart == rhs.hasExplicitIntervalStart &&
         lhs.intervalEnd == rhs.intervalEnd && lhs.sleepStage == rhs.sleepStage &&
         lhs.sessionEnd == rhs.sessionEnd && lhs.provenance == rhs.provenance
+    }
+
+    /// R1 records a total with explicit active/resting components, while
+    /// ring1Notify can carry just the active component at the same timestamp.
+    /// They are one active-energy observation, not conflicting calories.
+    private func sameActiveEnergyRepresentation(_ lhs: HealthMeasurement, _ rhs: HealthMeasurement) -> Bool {
+        guard lhs.kind == .calories, rhs.kind == .calories,
+              lhs.timestamp == rhs.timestamp,
+              lhs.originalUnit == rhs.originalUnit,
+              lhs.canonicalUnit == rhs.canonicalUnit,
+              lhs.statistic == rhs.statistic,
+              lhs.semantics == rhs.semantics,
+              lhs.hasExplicitIntervalStart == rhs.hasExplicitIntervalStart,
+              lhs.intervalEnd == rhs.intervalEnd,
+              lhs.provenance == rhs.provenance else { return false }
+        if let active = lhs.components["active"], rhs.components.isEmpty, active == rhs.value { return true }
+        if let active = rhs.components["active"], lhs.components.isEmpty, active == lhs.value { return true }
+        return false
+    }
+
+    private func prefers(_ lhs: HealthMeasurement, over rhs: HealthMeasurement) -> Bool {
+        if lhs.validation != rhs.validation { return lhs.validation == .eligible }
+        if lhs.kind == .calories {
+            let lhsHasActive = lhs.components["active"] != nil
+            let rhsHasActive = rhs.components["active"] != nil
+            if lhsHasActive != rhsHasActive { return lhsHasActive }
+        }
+        if lhs.source != rhs.source { return lhs.source == "R1" }
+        return false
     }
 
     private struct SleepInterval: Hashable {

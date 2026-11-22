@@ -9,8 +9,8 @@ enum DiagnosticLoggingService {
 }
 
 enum ImportFormatVersion {
-    static let parser = 3
-    static let mapping = 1
+    static let parser = 4
+    static let mapping = 2
 }
 
 @Model
@@ -93,12 +93,58 @@ final class StoredSample {
     }
 }
 
-@MainActor struct HealthKitService: SleepSampleWriting {
+/// App-owned quantity import records remain separate from sleep stages so the
+/// existing persistence schema can evolve without fabricating sleep metadata.
+@Model
+final class StoredQuantitySample {
+    @Attribute(.unique) var stableID: String
+    var category: String
+    var savedAt: Date
+    var start: Date
+    var end: Date
+    var valueText: String
+    var unit: String
+    var source: String = ""
+    var parserVersion: Int
+    var mappingVersion: Int
+
+    init(_ sample: QuantityImportCandidate) {
+        self.stableID = sample.id
+        self.category = sample.kind.rawValue
+        self.savedAt = .now
+        self.start = sample.start
+        self.end = sample.end
+        self.valueText = NSDecimalNumber(decimal: sample.value).stringValue
+        self.unit = sample.unit
+        self.source = sample.source
+        self.parserVersion = sample.parserVersion
+        self.mappingVersion = sample.mappingVersion
+    }
+}
+
+@MainActor struct HealthKitService: SleepSampleWriting, QuantitySampleWriting {
     private let store = HKHealthStore()
 
     static func sleepWriteStatus() -> String {
         guard HKHealthStore.isHealthDataAvailable(),
               let type = HKObjectType.categoryType(forIdentifier: .sleepAnalysis) else { return String(localized: "Non disponibile") }
+        switch HKHealthStore().authorizationStatus(for: type) {
+        case .sharingAuthorized: return String(localized: "Scrittura consentita")
+        case .sharingDenied: return String(localized: "Scrittura negata")
+        case .notDetermined: return String(localized: "Non ancora richiesta")
+        @unknown default: return String(localized: "Stato sconosciuto")
+        }
+    }
+
+    static func quantityWriteStatus(for kind: QuantityImportKind) -> String {
+        guard HKHealthStore.isHealthDataAvailable() else { return String(localized: "Non disponibile") }
+        let identifier: HKQuantityTypeIdentifier = switch kind {
+        case .steps: .stepCount
+        case .activeEnergy: .activeEnergyBurned
+        }
+        guard let type = HKObjectType.quantityType(forIdentifier: identifier) else {
+            return String(localized: "Non disponibile")
+        }
         switch HKHealthStore().authorizationStatus(for: type) {
         case .sharingAuthorized: return String(localized: "Scrittura consentita")
         case .sharingDenied: return String(localized: "Scrittura negata")
@@ -143,6 +189,56 @@ final class StoredSample {
         try await store.save(sample)
     }
 
+    func authorize(for kind: QuantityImportKind) async throws {
+        guard HKHealthStore.isHealthDataAvailable(), let type = quantityType(for: kind) else {
+            throw ImportFailure.healthUnavailable
+        }
+        try await store.requestAuthorization(toShare: [type], read: [type])
+        guard store.authorizationStatus(for: type) == .sharingAuthorized else {
+            throw ImportFailure.quantityPermissionDenied(kind)
+        }
+    }
+
+    func alreadySaved(_ item: QuantityImportCandidate) async throws -> Bool {
+        guard let type = quantityType(for: item.kind) else { throw ImportFailure.invalidQuantitySample }
+        let ownSource = HKQuery.predicateForObjects(from: HKSource.default())
+        let identifier = HKQuery.predicateForObjects(withMetadataKey: HKMetadataKeySyncIdentifier, allowedValues: [item.id])
+        let predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [ownSource, identifier])
+        let descriptor = HKSampleQueryDescriptor(
+            predicates: [.quantitySample(type: type, predicate: predicate)], sortDescriptors: [], limit: 2
+        )
+        let matches = try await descriptor.result(for: store)
+        guard matches.count <= 1 else { throw ImportFailure.conflictingSavedSample }
+        guard let match = matches.first else { return false }
+        let expected = NSDecimalNumber(decimal: item.value).doubleValue
+        let observed = match.quantity.doubleValue(for: quantityUnit(for: item.kind))
+        guard match.startDate == item.start, match.endDate == item.end,
+              abs(observed - expected) < 0.000_000_1 else { throw ImportFailure.conflictingSavedSample }
+        return true
+    }
+
+    func save(_ item: QuantityImportCandidate) async throws {
+        guard let type = quantityType(for: item.kind), item.end > item.start else {
+            throw ImportFailure.invalidQuantitySample
+        }
+        let value = NSDecimalNumber(decimal: item.value).doubleValue
+        guard value.isFinite, value > 0 else { throw ImportFailure.invalidQuantitySample }
+        let sample = HKQuantitySample(
+            type: type,
+            quantity: HKQuantity(unit: quantityUnit(for: item.kind), doubleValue: value),
+            start: item.start,
+            end: item.end,
+            metadata: [
+                HKMetadataKeySyncIdentifier: item.id,
+                HKMetadataKeySyncVersion: item.mappingVersion,
+                "EvenHealthBridgeSource": item.source,
+                "EvenHealthBridgeParserVersion": String(item.parserVersion),
+                "EvenHealthBridgeMappingVersion": String(item.mappingVersion)
+            ]
+        )
+        try await store.save(sample)
+    }
+
     private func sleepValue(for item: HealthMeasurement) throws -> HKCategoryValueSleepAnalysis {
         guard let stage = item.sleepStage else { throw ImportFailure.invalidSample }
         switch stage {
@@ -151,6 +247,21 @@ final class StoredSample {
         case 2: return .asleepCore
         case 3: return .asleepDeep
         default: throw ImportFailure.invalidSample
+        }
+    }
+
+    private func quantityType(for kind: QuantityImportKind) -> HKQuantityType? {
+        let identifier: HKQuantityTypeIdentifier = switch kind {
+        case .steps: .stepCount
+        case .activeEnergy: .activeEnergyBurned
+        }
+        return HKObjectType.quantityType(forIdentifier: identifier)
+    }
+
+    private func quantityUnit(for kind: QuantityImportKind) -> HKUnit {
+        switch kind {
+        case .steps: .count()
+        case .activeEnergy: .kilocalorie()
         }
     }
 }
@@ -174,13 +285,40 @@ final class StoredSample {
     }
 }
 
+@MainActor struct SwiftDataQuantityRepository: QuantityImportRecording {
+    let context: ModelContext
+
+    func existingSamples(for kind: QuantityImportKind) throws -> [ImportedQuantitySample] {
+        try context.fetch(FetchDescriptor<StoredQuantitySample>()).compactMap { stored in
+            guard stored.category == kind.rawValue else { return nil }
+            guard let value = Decimal(string: stored.valueText, locale: Locale(identifier: "en_US_POSIX")) else {
+                return nil
+            }
+            return .init(id: stored.stableID, kind: kind, start: stored.start, end: stored.end,
+                         value: value, unit: stored.unit)
+        }
+    }
+
+    func record(_ sample: QuantityImportCandidate) throws {
+        context.insert(StoredQuantitySample(sample))
+        try context.save()
+    }
+}
+
 enum ImportFailure: LocalizedError {
-    case healthUnavailable, permissionDenied, invalidSample, unreadableArchive, conflictingSavedSample
+    case healthUnavailable, permissionDenied, quantityPermissionDenied(QuantityImportKind), invalidSample,
+         invalidQuantitySample, unreadableArchive, conflictingSavedSample
     var errorDescription: String? {
         switch self {
         case .healthUnavailable: String(localized: "Apple Salute non è disponibile su questo dispositivo.")
         case .permissionDenied: String(localized: "Autorizzazione alla scrittura del sonno non concessa.")
+        case .quantityPermissionDenied(let kind):
+            switch kind {
+            case .steps: String(localized: "Autorizzazione alla scrittura dei passi non concessa.")
+            case .activeEnergy: String(localized: "Autorizzazione alla scrittura delle calorie attive non concessa.")
+            }
         case .invalidSample: String(localized: "Campione di sonno non valido.")
+        case .invalidQuantitySample: String(localized: "Campione di passi o calorie attive non valido.")
         case .unreadableArchive: String(localized: "Impossibile leggere il file selezionato.")
         case .conflictingSavedSample: String(localized: "In Apple Salute esiste già un campione con lo stesso identificativo ma dati diversi. Importazione interrotta.")
         }
@@ -193,9 +331,10 @@ enum ImportInterruptionReason {
     init(error: Error) {
         switch error {
         case ImportFailure.permissionDenied: self = .permissionDenied
+        case ImportFailure.quantityPermissionDenied: self = .permissionDenied
         case ImportFailure.healthUnavailable: self = .healthUnavailable
         case ImportFailure.conflictingSavedSample: self = .conflictingSample
-        case ImportFailure.invalidSample: self = .invalidSample
+        case ImportFailure.invalidSample, ImportFailure.invalidQuantitySample: self = .invalidSample
         default: self = .other
         }
     }
@@ -219,6 +358,7 @@ final class ImportCoordinator {
     var isWorking = false
     var persisted = false
     var writtenCount: Int?
+    var quantityWrittenCounts: [QuantityImportKind: Int] = [:]
     var progress: (completed: Int, total: Int)?
     private var activeAttemptID: UUID?
 
@@ -234,11 +374,12 @@ final class ImportCoordinator {
         error = nil
         persisted = false
         writtenCount = nil
+        quantityWrittenCounts = [:]
         progress = nil
         defer { isWorking = false }
         let inbox = FileImporterInbox.currentAppInbox()
-        try? inbox?.discardCopies(except: url)
-        defer { try? inbox?.discardIfOwnedCopy(url) }
+        _ = try? inbox?.discardCopies(except: url)
+        defer { _ = try? inbox?.discardIfOwnedCopy(url) }
         let access = url.startAccessingSecurityScopedResource()
         defer { if access { url.stopAccessingSecurityScopedResource() } }
         do {
@@ -277,6 +418,7 @@ final class ImportCoordinator {
         error = nil
         progress = nil
         writtenCount = nil
+        quantityWrittenCounts = [:]
         defer { isWorking = false }
         do {
             try recordStartedImport(in: context)
@@ -296,6 +438,41 @@ final class ImportCoordinator {
         }
     }
 
+    func importQuantities(in context: ModelContext, kinds: Set<QuantityImportKind>) async {
+        guard !isWorking, let dataset, !kinds.isEmpty else { return }
+        isWorking = true
+        error = nil
+        progress = nil
+        writtenCount = nil
+        quantityWrittenCounts = [:]
+        defer { isWorking = false }
+        do {
+            try recordStartedImport(in: context)
+            var totalWritten = 0
+            for kind in QuantityImportKind.allCases where kinds.contains(kind) {
+                let written = try await QuantityImportExecutor().run(
+                    dataset.measurements, kind: kind, writer: HealthKitService(),
+                    repository: SwiftDataQuantityRepository(context: context)
+                ) { completed, total in
+                    self.progress = (completed, total)
+                }
+                totalWritten += written
+                writtenCount = totalWritten
+                quantityWrittenCounts[kind] = written
+            }
+            try saveAnalysis(in: context)
+            DiagnosticLoggingService.logger.info("Quantity import completed; written: \(totalWritten, privacy: .public)")
+        } catch is CancellationError {
+            self.error = String(localized: "Importazione interrotta. Puoi riprendere quando vuoi.")
+            try? recordInterruptedImport(in: context, reason: .cancelled)
+            DiagnosticLoggingService.logger.info("Quantity import cancelled")
+        } catch {
+            self.error = error.localizedDescription
+            try? recordInterruptedImport(in: context, reason: ImportInterruptionReason(error: error))
+            DiagnosticLoggingService.logger.error("Quantity import interrupted")
+        }
+    }
+
     func recordStartedImport(in context: ModelContext) throws {
         guard let dataset else { return }
         if persisted { activeAttemptID = UUID() }
@@ -308,12 +485,11 @@ final class ImportCoordinator {
 
     func recordInterruptedImport(in context: ModelContext, reason: ImportInterruptionReason) throws {
         guard let dataset else { return }
-        let ids = Set(dataset.measurements.filter { $0.kind == .sleep }.map(\.id))
-        let saved = try context.fetch(FetchDescriptor<StoredSample>()).filter { ids.contains($0.stableID) }.count
+        let saved = try confirmedStoredCount(in: context, dataset: dataset)
         let session = try currentAttempt(in: context, dataset: dataset)
         session.writtenSamples = saved
         session.excluded = try excludedCount(in: context)
-        let format = String(localized: "%@: %@ fasi registrate localmente; verifica al prossimo tentativo.")
+        let format = String(localized: "%@: %@ campioni registrati localmente; verifica al prossimo tentativo.")
         session.status = String(format: format, locale: .current, reason.title, String(saved))
         try context.save()
     }
@@ -322,11 +498,10 @@ final class ImportCoordinator {
         guard let dataset else { return }
         let session = try currentAttempt(in: context, dataset: dataset)
         if let writtenCount {
-            let ids = Set(dataset.measurements.filter { $0.kind == .sleep }.map(\.id))
-            let saved = try context.fetch(FetchDescriptor<StoredSample>()).filter { ids.contains($0.stableID) }.count
+            let saved = try confirmedStoredCount(in: context, dataset: dataset)
             session.writtenSamples = saved
             session.lastSyncedAt = .now
-            let statusFormat = String(localized: "Sonno sincronizzato: %lld campioni, %lld nuovi in questo tentativo")
+            let statusFormat = String(localized: "Dati sincronizzati: %lld campioni, %lld nuovi in questo tentativo")
             session.status = String(format: statusFormat, locale: .current, saved, writtenCount)
         }
         session.excluded = try excludedCount(in: context)
@@ -356,14 +531,33 @@ final class ImportCoordinator {
         }.count
         let saved = try SwiftDataSleepRepository(context: context).existingSamples()
         let overlapConflicts = SleepImportPlanner().plan(dataset.measurements, imported: saved).conflicts
-        return invalidOrAmbiguous + overlapConflicts
+        let quantityConflicts = try QuantityImportKind.allCases.reduce(0) { total, kind in
+            total + QuantityImportPlanner().plan(
+                dataset.measurements, kind: kind,
+                imported: try SwiftDataQuantityRepository(context: context).existingSamples(for: kind)
+            ).conflicts
+        }
+        return invalidOrAmbiguous + overlapConflicts + quantityConflicts
+    }
+
+    private func confirmedStoredCount(in context: ModelContext, dataset: ParsedDataset) throws -> Int {
+        let sleepIDs = Set(dataset.measurements.filter { $0.kind == .sleep }.map(\.id))
+        let sleepCount = try context.fetch(FetchDescriptor<StoredSample>()).filter { sleepIDs.contains($0.stableID) }.count
+        let storedQuantityIDs = Set(try context.fetch(FetchDescriptor<StoredQuantitySample>()).map(\.stableID))
+        let quantityCount = try QuantityImportKind.allCases.reduce(0) { total, kind in
+            total + QuantityImportPlanner().plan(
+                dataset.measurements, kind: kind,
+                imported: try SwiftDataQuantityRepository(context: context).existingSamples(for: kind)
+            ).candidates.filter { storedQuantityIDs.contains($0.id) }.count
+        }
+        return sleepCount + quantityCount
     }
 }
 
 enum LocalStore {
     static func open(configuration: ModelConfiguration = ModelConfiguration(cloudKitDatabase: .none)) -> ModelContainer? {
         do {
-            return try ModelContainer(for: StoredImportSession.self, StoredImportAttempt.self, StoredSample.self, configurations: configuration)
+            return try ModelContainer(for: StoredImportSession.self, StoredImportAttempt.self, StoredSample.self, StoredQuantitySample.self, configurations: configuration)
         } catch {
             DiagnosticLoggingService.logger.error("Local history store unavailable")
             return nil

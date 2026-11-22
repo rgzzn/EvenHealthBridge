@@ -2,16 +2,25 @@ import SwiftUI
 
 struct HealthPermissionsView: View {
     @Environment(\.scenePhase) private var scenePhase
-    @State private var status = String(localized: "Non verificato")
+    @State private var sleepStatus = String(localized: "Non verificato")
+    @State private var stepsStatus = String(localized: "Non verificato")
+    @State private var activeEnergyStatus = String(localized: "Non verificato")
 
     var body: some View {
         Form {
             Section("Autorizzazione sonno") {
-                LabeledContent("Scrittura", value: status)
+                LabeledContent("Scrittura", value: sleepStatus)
                 Text("Quando confermi l'importazione, l'app chiede accesso al sonno in lettura e scrittura. Interroga soltanto i campioni che ha creato per evitare duplicati dopo un'interruzione.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
                 Button("Aggiorna stato") { refresh() }
+            }
+            Section("Autorizzazioni attività") {
+                LabeledContent("Passi", value: stepsStatus)
+                LabeledContent("Calorie attive", value: activeEnergyStatus)
+                Text("L'app chiede questi permessi solo quando un archivio dichiara unità, delta e intervallo espliciti. Interroga e riconcilia soltanto i campioni creati da Even Health Bridge; non modifica mai quelli di Apple Watch o di altre app.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
             }
             Section("Studio e fonti di confronto") {
                 Text("La scheda Studio richiede, solo quando avvii un confronto, la lettura delle metriche che selezioni tra quelle presenti nell'archivio Even e nell'intervallo scelto. Può confrontare Apple Watch o un’altra fonte che selezioni. Non scrive, modifica o conserva campioni Apple Salute.")
@@ -19,7 +28,7 @@ struct HealthPermissionsView: View {
                     .foregroundStyle(.secondary)
             }
             Section("Se il permesso è negato") {
-                Text("Apri le impostazioni di Apple Salute e abilita la scrittura dei dati sul sonno per Even Health Bridge.")
+                Text("Apri le impostazioni di Apple Salute e abilita per Even Health Bridge le categorie che desideri importare.")
             }
         }
         .navigationTitle("Permessi Salute")
@@ -30,6 +39,8 @@ struct HealthPermissionsView: View {
     }
 
     private func refresh() {
-        status = HealthKitService.sleepWriteStatus()
+        sleepStatus = HealthKitService.sleepWriteStatus()
+        stepsStatus = HealthKitService.quantityWriteStatus(for: .steps)
+        activeEnergyStatus = HealthKitService.quantityWriteStatus(for: .activeEnergy)
     }
 }

@@ -27,7 +27,24 @@ The parser also compares the complete stage sequence between R1 and `ring1Notify
 
 ## Import decision
 
-All seven categories can be analysed and previewed. Sleep may be offered for writing only after per-import duration validation and user consent. Every other category remains excluded until its unit, semantics, and intervals are confirmed.
+All seven categories can be analysed and previewed. Sleep may be offered for writing only after per-import duration validation and user consent.
+
+The parser now has a fail-closed writer contract for future `steps` and active
+energy rows: it accepts a step row only with an explicit `start_ts`, `end_ts`,
+`value_semantics=delta`, a declared count unit, and an integral positive value.
+It accepts active energy only with those same interval and delta declarations,
+a kilocalorie unit, and an explicitly named `active` component. The contract
+never derives active energy from the total or resting component.
+
+Neither real archive currently supplies those declarations. In the 13 November
+archive, the 723 R1 step rows and their 723 `ring1Notify` counterparts have the
+same timestamp and numerically equivalent values after normalization, but the
+values are not monotonic within any observed day. For calories, every R1 total
+equals `resting + active` while the `ring1Notify` value equals the R1 active
+component. The app recognizes those representations as duplicate sources; it
+does not interpret their reporting cadence as an interval. Therefore the
+current archive still exposes zero writable step and calorie records and does
+not request their HealthKit authorization.
 
 ## Observed timestamp cadence (research only)
 

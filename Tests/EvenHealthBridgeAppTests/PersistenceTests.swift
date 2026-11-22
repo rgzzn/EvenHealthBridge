@@ -18,6 +18,9 @@ private final class SyntheticArchiveMarker {}
         "Seleziona archivio ZIP": "Select ZIP archive",
         "%@ – %@": "%1$@ – %2$@",
         "Importa il sonno in Apple Salute": "Import sleep into Apple Health",
+        "Attività importabile": "Importable activity",
+        "Importa attività selezionata in Apple Salute": "Import selected activity into Apple Health",
+        "Questo export non dichiara ancora unità, delta e inizio/fine dell'intervallo per passi o calorie attive. Rimane in sola analisi e non verrà scritto in Apple Salute.": "This export does not yet declare unit, delta, or interval start and end for steps or active calories. It remains analysis-only and will not be written to Apple Health.",
         "Confronta con Apple Watch": "Compare with Apple Watch",
         "Intervallo di confronto": "Comparison interval",
         "Variazione di temperatura notturna": "Nightly temperature variation",
@@ -99,14 +102,51 @@ private final class SyntheticArchiveMarker {}
     #expect(plan.alreadyImported == 1)
 }
 
+@MainActor @Test func savedQuantitySurvivesStoreReopenAndPreventsReplay() throws {
+    let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let storeURL = directory.appendingPathComponent("EvenHealthBridge.store")
+    let candidate = QuantityImportCandidate(
+        id: "quantity|steps|stable-step-id", kind: .steps,
+        start: Date(timeIntervalSince1970: 1_700_000_000),
+        end: Date(timeIntervalSince1970: 1_700_000_600),
+        value: 42, unit: "count", source: "R1"
+    )
+
+    do {
+        let container = try makeContainer(at: storeURL)
+        let context = ModelContext(container)
+        try SwiftDataQuantityRepository(context: context).record(candidate)
+        #expect(try context.fetchCount(FetchDescriptor<StoredQuantitySample>()) == 1)
+    }
+
+    let reopened = try makeContainer(at: storeURL)
+    let imported = try SwiftDataQuantityRepository(context: ModelContext(reopened)).existingSamples(for: .steps)
+    #expect(imported.count == 1)
+    #expect(imported.first?.id == candidate.id)
+    let measurement = HealthMeasurement(
+        id: "stable-step-id", kind: .steps, timestamp: candidate.start,
+        originalTimestamp: ISO8601DateFormatter().string(from: candidate.start), source: "R1",
+        value: candidate.value, components: [:], originalUnit: "count", canonicalUnit: "count",
+        statistic: nil, intervalEnd: candidate.end, sleepStage: nil, sessionEnd: nil,
+        provenance: "steps.csv", validation: .eligible, semantics: "delta", hasExplicitIntervalStart: true
+    )
+    let mapped = try #require(QuantityMappingContract.candidate(for: measurement))
+    #expect(mapped.id == candidate.id)
+    let replay = QuantityImportPlanner().plan([measurement], kind: .steps, imported: imported)
+    #expect(replay.newSamples.isEmpty)
+    #expect(replay.alreadyImported == 1)
+}
+
 @MainActor private func makeContainer(at url: URL) throws -> ModelContainer {
     let configuration = ModelConfiguration(url: url, cloudKitDatabase: .none)
-    return try ModelContainer(for: StoredImportSession.self, StoredImportAttempt.self, StoredSample.self, configurations: configuration)
+    return try ModelContainer(for: StoredImportSession.self, StoredImportAttempt.self, StoredSample.self, StoredQuantitySample.self, configurations: configuration)
 }
 
 @MainActor private func makeInMemoryContainer() throws -> ModelContainer {
     let configuration = ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
-    return try ModelContainer(for: StoredImportSession.self, StoredImportAttempt.self, StoredSample.self, configurations: configuration)
+    return try ModelContainer(for: StoredImportSession.self, StoredImportAttempt.self, StoredSample.self, StoredQuantitySample.self, configurations: configuration)
 }
 
 @MainActor @Test func unavailableLocalStoreNeverFallsBackToEmptyHistory() throws {

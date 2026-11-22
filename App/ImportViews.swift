@@ -69,6 +69,7 @@ struct DashboardView: View {
     @Query(sort: \StoredImportAttempt.importedAt, order: .reverse) private var attempts: [StoredImportAttempt]
     @Query(sort: \StoredImportSession.importedAt, order: .reverse) private var legacySessions: [StoredImportSession]
     @Query private var savedSamples: [StoredSample]
+    @Query private var savedQuantitySamples: [StoredQuantitySample]
     @State private var healthStatus = String(localized: "Non verificato")
 
     private var latest: (any ImportHistoryRecord)? {
@@ -84,7 +85,15 @@ struct DashboardView: View {
     }
 
     private var importedCategories: String {
-        let names = Set(savedSamples.map(\.category)).sorted().map { $0 == "sleep" ? String(localized: "Sonno") : $0 }
+        let categories = Set(savedSamples.map(\.category) + savedQuantitySamples.map(\.category))
+        let names = categories.sorted().map {
+            switch $0 {
+            case "sleep": String(localized: "Sonno")
+            case "steps": String(localized: "Passi")
+            case "activeEnergy": String(localized: "Calorie attive")
+            default: $0
+            }
+        }
         return names.isEmpty ? String(localized: "Nessuna") : names.joined(separator: ", ")
     }
 
@@ -100,6 +109,7 @@ struct DashboardView: View {
             LabeledContent("Apple Salute · sonno", value: healthStatus)
             LabeledContent("Categorie importate", value: importedCategories)
             LabeledContent("Fasi del sonno registrate", value: "\(savedSamples.count)")
+            LabeledContent("Passi e calorie attive registrati", value: "\(savedQuantitySamples.count)")
             if let first = savedSamples.map(\.start).min(), let last = savedSamples.map(\.end).max() {
                 LabeledContent("Periodo importato", value: "\(first.formatted(date: .abbreviated, time: .omitted)) – \(last.formatted(date: .abbreviated, time: .omitted))")
             }
@@ -130,11 +140,11 @@ struct ImportProgressView: View {
         Section("Avanzamento") {
             if let progress = coordinator.progress, progress.total > 0 {
                 ProgressView(value: Double(progress.completed), total: Double(progress.total)) {
-                    Text("Scrittura del sonno")
+                    Text("Scrittura in Apple Salute")
                 } currentValueLabel: {
-                    Text(String(format: String(localized: "%@ di %@ fasi"), locale: .current, String(progress.completed), String(progress.total)))
+                    Text(String(format: String(localized: "%@ di %@ campioni"), locale: .current, String(progress.completed), String(progress.total)))
                 }
-                .accessibilityLabel(String(format: String(localized: "Scrittura del sonno, %@ di %@ fasi"), locale: .current, String(progress.completed), String(progress.total)))
+                .accessibilityLabel(String(format: String(localized: "Scrittura in Apple Salute, %@ di %@ campioni"), locale: .current, String(progress.completed), String(progress.total)))
             } else if coordinator.isWorking {
                 ProgressView("Analisi o autorizzazione in corso")
             }
@@ -147,7 +157,10 @@ struct ImportPreviewView: View {
     let coordinator: ImportCoordinator
     @Environment(\.modelContext) private var context
     @Query private var savedSamples: [StoredSample]
+    @Query private var savedQuantitySamples: [StoredQuantitySample]
     @State private var includeSleep = true
+    @State private var includeSteps = true
+    @State private var includeActiveEnergy = true
     @State private var importTask: Task<Void, Never>?
     @AppStorage("previewInDeviceTimeZone") private var previewInDeviceTimeZone = false
 
@@ -158,9 +171,22 @@ struct ImportPreviewView: View {
         return SleepImportPlanner().plan(dataset.measurements, imported: imported)
     }
 
+    private var quantityPlans: [QuantityImportKind: QuantityImportPlan] {
+        let imported = savedQuantitySamples.compactMap { stored -> ImportedQuantitySample? in
+            guard let kind = QuantityImportKind(rawValue: stored.category),
+                  let value = Decimal(string: stored.valueText, locale: Locale(identifier: "en_US_POSIX")) else { return nil }
+            return .init(id: stored.stableID, kind: kind, start: stored.start, end: stored.end,
+                         value: value, unit: stored.unit)
+        }
+        return Dictionary(uniqueKeysWithValues: QuantityImportKind.allCases.map { kind in
+            (kind, QuantityImportPlanner().plan(dataset.measurements, kind: kind, imported: imported))
+        })
+    }
+
     var body: some View {
         let plan = self.plan
-        let summary = ImportPreviewSummary(measurements: dataset.measurements, sleepPlan: plan)
+        let quantityPlans = self.quantityPlans
+        let summary = ImportPreviewSummary(measurements: dataset.measurements, sleepPlan: plan, quantityPlans: quantityPlans)
         Section("Anteprima") {
             if let first = summary.categories.compactMap(\.periodStart).min(),
                let last = summary.categories.compactMap(\.periodEnd).max() {
@@ -175,7 +201,7 @@ struct ImportPreviewView: View {
             LabeledContent("Già importate", value: "\(plan.alreadyImported)")
             LabeledContent("Conflitti tra archivi", value: "\(plan.conflicts)")
             Toggle("Includi il sonno", isOn: $includeSleep)
-            Text("Le altre categorie sono escluse finché unità, intervalli e significato dei valori non sono verificati.")
+            Text("Passi e calorie attive diventano scrivibili soltanto se l'archivio dichiara unità, delta e intervallo. Le altre categorie restano escluse finché la semantica non è verificata.")
                 .font(.footnote)
                 .foregroundStyle(.secondary)
             if !plan.newSamples.isEmpty {
@@ -202,6 +228,42 @@ struct ImportPreviewView: View {
                 catch { coordinator.error = error.localizedDescription }
             }
             .disabled(coordinator.persisted || coordinator.isWorking)
+        }
+        Section("Attività importabile") {
+            let steps = quantityPlans[.steps] ?? .init(candidates: [], newSamples: [], alreadyImported: 0, conflicts: 0)
+            let activeEnergy = quantityPlans[.activeEnergy] ?? .init(candidates: [], newSamples: [], alreadyImported: 0, conflicts: 0)
+            LabeledContent("Nuovi passi", value: "\(steps.newSamples.count)")
+            LabeledContent("Passi già importati", value: "\(steps.alreadyImported)")
+            LabeledContent("Nuove calorie attive", value: "\(activeEnergy.newSamples.count)")
+            LabeledContent("Calorie attive già importate", value: "\(activeEnergy.alreadyImported)")
+            if !steps.newSamples.isEmpty {
+                Toggle("Includi i passi", isOn: $includeSteps)
+            }
+            if !activeEnergy.newSamples.isEmpty {
+                Toggle("Includi le calorie attive", isOn: $includeActiveEnergy)
+            }
+            if steps.newSamples.isEmpty && activeEnergy.newSamples.isEmpty {
+                Text("Questo export non dichiara ancora unità, delta e inizio/fine dell'intervallo per passi o calorie attive. Rimane in sola analisi e non verrà scritto in Apple Salute.")
+                    .font(.footnote).foregroundStyle(.secondary)
+            }
+            if let written = coordinator.quantityWrittenCounts[.steps] {
+                Label("Nuovi passi salvati: \(written)", systemImage: "checkmark.circle")
+                    .foregroundStyle(.green)
+            }
+            if let written = coordinator.quantityWrittenCounts[.activeEnergy] {
+                Label("Nuove calorie attive salvate: \(written)", systemImage: "checkmark.circle")
+                    .foregroundStyle(.green)
+            }
+            Button("Importa attività selezionata in Apple Salute") {
+                let requested: [QuantityImportKind?] = [
+                    includeSteps ? .steps : nil,
+                    includeActiveEnergy ? .activeEnergy : nil
+                ]
+                let kinds = Set(requested.compactMap { $0 })
+                importTask = Task { await coordinator.importQuantities(in: context, kinds: kinds) }
+            }
+            .disabled(coordinator.isWorking || (steps.newSamples.isEmpty || !includeSteps) && (activeEnergy.newSamples.isEmpty || !includeActiveEnergy))
+            .accessibilityHint("Richiede solo i permessi di lettura e scrittura per le categorie di attività selezionate")
         }
         if !dataset.warnings.isEmpty {
             Section("Avvisi") {
@@ -275,7 +337,7 @@ private struct CategorySummaryRow: View {
     }
 
     private var isAutomaticallyImportable: Bool {
-        HealthImportReadiness.current(for: summary.kind) == .availableForValidatedSleep
+        summary.eligible > 0 && HealthImportReadiness.current(for: summary.kind).permitsAutomaticHealthWrite
     }
 
     private var summaryLine: String {
@@ -291,10 +353,10 @@ private struct CategorySummaryRow: View {
         switch HealthImportReadiness.current(for: summary.kind) {
         case .availableForValidatedSleep:
             nil
-        case .requiresStepIntervalAndSemantics:
-            String(localized: "Passi in sola lettura: l'export non documenta se ogni riga sia un delta o un totale cumulativo, né il suo intervallo.")
-        case .requiresCalorieSemanticsAndInterval:
-            String(localized: "Calorie in sola lettura: totale, attive, a riposo e la finestra temporale devono essere documentati prima del mapping.")
+        case .availableForValidatedSteps:
+            summary.eligible > 0 ? nil : String(localized: "Passi in sola lettura: l'export non documenta se ogni riga sia un delta o un totale cumulativo, né il suo intervallo.")
+        case .availableForValidatedActiveEnergy:
+            summary.eligible > 0 ? nil : String(localized: "Calorie in sola lettura: solo la componente attiva con unità, delta e finestra espliciti può essere importata; totale e riposo restano esclusi.")
         case .requiresHeartRateAggregationInterval:
             String(localized: "Frequenza cardiaca in sola lettura: l'intervallo di aggregazione di avg, min e max non è documentato.")
         case .requiresConfirmedHRVMetric:

@@ -6,8 +6,12 @@ import Foundation
 /// its biomedical meaning or measurement interval remains insufficiently documented for HealthKit.
 public enum HealthImportReadiness: String, Sendable, Codable, CaseIterable {
     case availableForValidatedSleep
-    case requiresStepIntervalAndSemantics
-    case requiresCalorieSemanticsAndInterval
+    /// A step row must still satisfy `StepMappingContract`; current real exports
+    /// do not, because they omit unit, delta meaning, and interval boundaries.
+    case availableForValidatedSteps
+    /// An energy row must still satisfy `ActiveEnergyMappingContract`; total and
+    /// resting energy are never candidates for this HealthKit type.
+    case availableForValidatedActiveEnergy
     case requiresHeartRateAggregationInterval
     case requiresConfirmedHRVMetric
     case requiresOxygenSemanticsAndInterval
@@ -19,8 +23,8 @@ public enum HealthImportReadiness: String, Sendable, Codable, CaseIterable {
     public static func current(for kind: MeasurementKind) -> Self {
         switch kind {
         case .sleep: .availableForValidatedSleep
-        case .steps: .requiresStepIntervalAndSemantics
-        case .calories: .requiresCalorieSemanticsAndInterval
+        case .steps: .availableForValidatedSteps
+        case .calories: .availableForValidatedActiveEnergy
         case .heartRate: .requiresHeartRateAggregationInterval
         case .hrv: .requiresConfirmedHRVMetric
         case .oxygen: .requiresOxygenSemanticsAndInterval
@@ -29,6 +33,11 @@ public enum HealthImportReadiness: String, Sendable, Codable, CaseIterable {
     }
 
     public var permitsAutomaticHealthWrite: Bool {
-        self == .availableForValidatedSleep
+        switch self {
+        case .availableForValidatedSleep, .availableForValidatedSteps, .availableForValidatedActiveEnergy:
+            true
+        default:
+            false
+        }
     }
 }

@@ -9,7 +9,7 @@ Even Health Bridge remains fully local. It does not upload Health data, retain a
 ## Current baseline
 
 - All seven Even CSV categories are parsed and previewed.
-- Only validated sleep stages can be written today.
+- With the current export, only validated sleep stages can be written. Steps and active energy have a fail-closed HealthKit writer that remains unavailable until an individual row carries an explicit interval, a declared canonical unit, and `delta` semantics; active energy also needs its named `active` component.
 - Apple Watch comparison is read-only and source-scoped using the HealthKit source revision product type, with a narrow historical fallback for samples without a product type. The Study tab can also discover other sources found in the selected window, show only their metric-type and sample-count availability, and let the user select one for a local comparison. A discovered source uses its exact product type when available, so a similarly named device cannot be included accidentally.
 - The comparison engine is source-neutral, and the HealthKit reader accepts a `ReferenceSourceDefinition`. For each study, the user chooses from metric types represented in the selected Even archive window; both source discovery and comparison request read access only to those selected types. A source selected through local discovery uses its exact product type and exact historical name fallback; a future wearable must provide a documented source product type or an intentionally narrow historical marker.
 - Reference samples preserve their actual end date when HealthKit provides one.
@@ -29,8 +29,8 @@ Even Health Bridge remains fully local. It does not upload Health data, retain a
 | Category | HealthKit target after validation | Missing evidence | Status |
 | --- | --- | --- | --- |
 | Sleep stages | `sleepAnalysis` | Stage consistency and non-overlap are checked per archive | Enabled conservatively |
-| Steps | `stepCount` | Delta versus cumulative semantics and represented interval | Blocked |
-| Active energy | `activeEnergyBurned` | Active component definition, unit, and measurement window | Blocked |
+| Steps | `stepCount` | Current CSV lacks an explicit delta marker, declared count unit and start/end interval | Blocked for current export; writer contract ready |
+| Active energy | `activeEnergyBurned` | Current CSV lacks an explicit delta marker, declared kcal unit and start/end interval | Blocked for current export; writer contract ready |
 | Resting energy | `basalEnergyBurned` | Physiological meaning and measurement window | Blocked |
 | Heart rate | `heartRate` | Unit and aggregation window behind `avg` | Blocked |
 | HRV | `heartRateVariabilitySDNN` | Confirmation that Even reports SDNN, not another HRV metric | Blocked |
@@ -56,7 +56,7 @@ Rechecked on 2026-11-15: the export article confirms only that the downloaded ar
 
 1. **Evidence capture** — archive the vendor documentation link, expected unit, interval semantics, aggregation behavior, and a synthetic anonymized fixture. Update `Docs/DatasetAnalysis.md` without committing real exports.
 2. **Contract** — add a category-specific mapping contract, range validation, unit conversion, interval validation, and deterministic sample identifier. Change `HealthImportReadiness` only in the same change set.
-3. **Coverage plan** — query only the selected reference source in the requested time range. Pass its actual intervals to `ConservativeOverlayPlanner`; a record with any overlap remains excluded.
+3. **Coverage plan** — query only the selected reference source in the requested time range. Pass its actual intervals to `ConservativeOverlayPlanner`; a record with any overlap remains excluded. Never infer a gap from the cadence of a CSV export.
 4. **Preview** — show eligible, already-covered, missing-interval, malformed, duplicate, and conflict counts before authorization. Explain that a comparison does not prove clinical equivalence.
 5. **Writer** — create only app-owned HealthKit samples with sync metadata, record local reconciliation state in SwiftData, and provide cancellation recovery. Never use an Apple Watch sample as a write target.
 6. **Verification** — add parser, mapping, overlap-boundary, idempotency, partial-write recovery, and physical-iPhone tests. Validate an initial write and replay separately.

@@ -181,6 +181,33 @@ private func withArchive(_ files: [String: String], body: (URL) throws -> Void) 
     }
 }
 
+@Test func parserAdmitsOnlyExplicitQuantityDeltasAndDeduplicatesActiveEnergyRepresentations() throws {
+    let timestamp = "2026-11-14T10:10:00Z"
+    let start = "2026-11-14T10:00:00Z"
+    let end = "2026-11-14T10:10:00Z"
+    let steps = "timestamp,start_ts,end_ts,value,unit,value_semantics,source\n\(timestamp),\(start),\(end),42,count,delta,ring1Notify\n\(timestamp),\(start),\(end),42.0,count,delta,R1\n"
+    let calories = "timestamp,start_ts,end_ts,value,resting,active,unit,value_semantics,source\n\(timestamp),\(start),\(end),7,,,kcal,delta,ring1Notify\n\(timestamp),\(start),\(end),19,12,7,kcal,delta,R1\n"
+
+    try withArchive(["steps.csv": steps, "calories.csv": calories]) { url in
+        let dataset = try EvenDataParser().parseArchive(at: url)
+        let eligibleSteps = dataset.measurements.filter { $0.kind == .steps && $0.validation == .eligible }
+        let eligibleEnergy = dataset.measurements.filter { $0.kind == .calories && $0.validation == .eligible }
+        #expect(eligibleSteps.count == 1)
+        #expect(eligibleSteps.first?.source == "R1")
+        #expect(eligibleEnergy.count == 1)
+        #expect(eligibleEnergy.first?.source == "R1")
+        #expect(dataset.measurements.filter { $0.validation == .duplicate }.count == 2)
+
+        let stepsPlan = QuantityImportPlanner().plan(dataset.measurements, kind: .steps, imported: [])
+        let energyPlan = QuantityImportPlanner().plan(dataset.measurements, kind: .activeEnergy, imported: [])
+        #expect(stepsPlan.newSamples.count == 1)
+        #expect(stepsPlan.newSamples.first?.unit == "count")
+        #expect(energyPlan.newSamples.count == 1)
+        #expect(energyPlan.newSamples.first?.value == 7)
+        #expect(energyPlan.newSamples.first?.unit == "kcal")
+    }
+}
+
 @Test func malformedSleepIsExcludedWithWarning() throws {
     let files = ["sleep.csv": "timestamp,start_ts,end_ts,total_time,wake_time,rem_time,light_time,deep_time,stages,source,tz,body_temp_delta\n2026-01-01T00:00:00Z,2026-01-01T00:00:00Z,2026-01-01T00:01:00Z,60,0,0,60,0,\"[{\"\"type\"\":2,\"\"half_minutes\"\":1}]\",R1,+00:00,\n"]
     try withArchive(files) { url in

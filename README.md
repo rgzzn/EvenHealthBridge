@@ -1,19 +1,19 @@
 # Even Health Bridge
 
-A local iPhone app that analyses Even Realities R1 ZIP exports and imports verified sleep stages into Apple Health. It requires iOS 27, Xcode 27, and Swift 6.
+A local iPhone app that analyses Even Realities R1 ZIP exports and imports only verified records into Apple Health. It requires iOS 27, Xcode 27, and Swift 6.
 
 ## Getting started
 
 1. Open `EvenHealthBridge.xcodeproj` in Xcode 27.
 2. Select a signing team for the `EvenHealthBridge` target and enable the HealthKit and Data Protection capabilities. The entitlements file and usage descriptions are already present.
 3. Build to an iPhone running iOS 27. HealthKit may be unavailable in Simulator.
-4. Export a ZIP archive from the Even Realities app. Open it from **Select ZIP archive** in the app, or use **Open in Even Health Bridge** from Files or the Share sheet when iOS displays it. Review the preview and choose **Import sleep into Apple Health**. The authorization prompt is shown only at that point.
+4. Export a ZIP archive from the Even Realities app. Open it from **Select ZIP archive** in the app, or use **Open in Even Health Bridge** from Files or the Share sheet when iOS displays it. Review the preview and choose an enabled import. The authorization prompt is shown only for the selected category.
 
 The app registers the ZIP type as an openable document and reads URLs with security-scoped access and file coordination, including URLs from Files providers. It does not retain an archive copy: ZIP copies that iOS places in the app-owned `Documents/Inbox` are discarded after analysis, stale app-owned inbox ZIP copies are cleared before the next analysis and at the next app launch. The original file in Files is never changed. Import sessions and saved sample identifiers stay in on-device SwiftData, with CloudKit explicitly disabled and iOS Complete data protection. There is no server, account, or analytics.
 
 If the local SwiftData store cannot be opened, the app displays an error and lets the user retry. It never creates an empty temporary store: without existing identifiers it could not safely prevent duplicate Health writes.
 
-The dashboard shows the Apple Health sleep-write status, imported categories, saved-stage count and date range, the latest sync, and the latest analysis. The ZIP button is at the top of the screen and remains reachable with very large text. Permission status refreshes when the app becomes active and after an import finishes.
+The dashboard shows Apple Health write status, imported categories, saved record count and date range, the latest sync, and the latest analysis. The ZIP button is at the top of the screen and remains reachable with very large text. Permission status refreshes when the app becomes active and after an import finishes.
 
 ## Local automation
 
@@ -29,11 +29,11 @@ CSV files are decompressed and parsed one file and one row at a time. The app do
 
 The preview shows, for each category, analysed, validated, new, previously imported, in-ZIP duplicate, excluded, and conflicting measurements, as well as sources and the UTC range. When an export reports them, it also exposes the original units, statistical labels such as `avg`/`min`/`max`, and declared end times as evidence only. Each sleep stage is one measurement, so its count differs from the number of `sleep.csv` rows. New sleep stages list their type, time, duration, and source before any write is authorized. In Settings, users can choose UTC or iPhone-local times; the offset is always displayed.
 
-Steps, calories, heart rate, HRV, SpO₂, and temperature appear in the preview but are excluded from writing. The current export does not yet provide the units, intervals, or statistical meaning required for a safe mapping. In particular, Even does not specify whether HRV is SDNN, and min/max/avg are not three independent samples. Enabling another category in the future requires reliable documentation and dedicated testing.
+The current Even export keeps steps, calories, heart rate, HRV, SpO₂, and temperature excluded from writing because it does not yet provide the units, intervals, or statistical meaning required for a safe mapping. The app nevertheless has a dedicated, test-covered future writer for steps and active calories: it becomes available only when a row explicitly declares a positive interval, `delta` semantics, and the required unit; active calories additionally require the named `active` component. The existing exports do not meet that contract, so the app does not request a new permission for them. In particular, Even does not specify whether HRV is SDNN, and min/max/avg are not three independent samples.
 
 Temperature has a dedicated local research path. Even documents `skin_temperature.csv` as a nightly variation from its own personal baseline, not an absolute temperature. Apple’s closest sleep type, `appleSleepingWristTemperature`, holds an absolute wrist temperature and is read-only: apps can request read access but cannot save samples. Therefore Even Health Bridge never maps the variation to body temperature, basal body temperature, or Apple’s sleeping-wrist temperature. In **Study**, select **Nightly temperature variation** to request read-only access to Apple’s sleeping-wrist records and compare only temporal co-occurrence within a twelve-hour nightly window. It deliberately never reads or compares the Apple temperature values, never stores them, and never enables an import. Details and the future evidence gate are in [Docs/TemperatureIntegrationResearch.md](Docs/TemperatureIntegrationResearch.md).
 
-The preview shows the category-specific missing evidence instead of a generic warning: step delta-versus-cumulative semantics and interval; calorie component semantics and window; heart-rate aggregation interval; HRV metric identity; oxygen unit and aggregation method; and a compatible temperature meaning. This register is not a user override: only validated sleep currently permits automatic Health writes.
+The preview shows the category-specific missing evidence instead of a generic warning: step delta-versus-cumulative semantics and interval; calorie component semantics and window; heart-rate aggregation interval; HRV metric identity; oxygen unit and aggregation method; and a compatible temperature meaning. This register is not a user override: with the current export only validated sleep permits automatic Health writes.
 
 For future validated categories, the core includes a conservative overlay planner. It accepts only complete Even intervals that are eligible for writing and have no overlap with existing Health coverage. It excludes the entire sample on any overlap and never creates a partial value for a short uncovered fragment. The planner is not connected to any new HealthKit writer until a category clears its semantic gate.
 
@@ -47,9 +47,9 @@ The report is driven by local metric contracts that declare the accepted Even sh
 
 ## Duplicate prevention and HealthKit safety
 
-Deduplication uses stable identifiers across sources and imports. It also compares the `resting` and `active` calorie components and classifies matching IDs with conflicting content as conflicts. HealthKit samples include a sync identifier and sync version. The planner compares sessions with locally saved samples: importing the same archive again creates zero new samples, while a session overlapping a prior session is excluded. Before each write, the app searches only for matching sleep samples that it created itself in HealthKit. If an interruption happens after a Health save but before local persistence, it recovers the identifier without writing a duplicate. If verification fails or finds conflicting data, the import stops. The app never reads, deletes, or changes samples from other apps.
+Deduplication uses stable identifiers across sources and imports. For validated active energy, a full R1 record (`resting + active`) and a matching `ring1Notify` active-only representation are treated as the same source measurement, while any incompatible representation stays a conflict. HealthKit samples include a sync identifier and sync version. The planner compares records with locally saved identifiers: importing the same archive again creates zero new records. Before each write, the app searches only for matching samples that it created itself in HealthKit. If an interruption happens after a Health save but before local persistence, it recovers the identifier without writing a duplicate. If verification fails or finds conflicting data, the import stops. The app never reads, deletes, or changes samples from other apps.
 
-At import time, the authorization request includes read and write access only for sleep. The query uses [the app’s HealthKit source](https://developer.apple.com/documentation/healthkit/hksource/default%28%29) so it is limited to samples created by Even Health Bridge; [Apple documents](https://developer.apple.com/documentation/healthkit/authorizing-access-to-health-data) that an app can still see its own samples when read access to other sources is denied. Each sample has a [sync identifier and version](https://developer.apple.com/documentation/healthkit/hkmetadatakeysyncidentifier).
+At import time, the authorization request includes read and write access only for the explicitly selected eligible category: sleep, or (only for a qualifying future export) steps or active energy. The reconciliation query uses [the app’s HealthKit source](https://developer.apple.com/documentation/healthkit/hksource/default%28%29) so it is limited to samples created by Even Health Bridge; [Apple documents](https://developer.apple.com/documentation/healthkit/authorizing-access-to-health-data) that an app can still see its own samples when read access to other sources is denied. Each sample has a [sync identifier and version](https://developer.apple.com/documentation/healthkit/hkmetadatakeysyncidentifier).
 
 Diagnostic logs include only counts and events, never biometric values. The `resting` and `active` calorie columns are kept in the in-memory analysis, but receive no HealthKit mapping until their interval is verified.
 
@@ -68,6 +68,8 @@ EVEN_HEALTH_LOCAL_ARCHIVE=/private/path/Even_health_data_20261108.zip swift test
 ```
 
 The real dataset is excluded from Git through `.gitignore`; shared tests use synthetic fixtures only.
+
+On 22 November 2026, the step and active-energy contracts passed 72 Swift core tests, including explicit interval/unit/semantics gates, R1-to-`ring1Notify` normalization, replay prevention, and recovery after a HealthKit save succeeds before SwiftData is updated. Ten app tests passed on an iOS 27.2 simulator, including persistence of a quantity identifier across a SwiftData store reopen. An unsigned generic-iPhone build passed with the iOS 27.2 SDK. A signed generic-device build is not currently verifiable because the checked-in Xcode project has no Development Team configured; no device was contacted for this work.
 
 On 22 November 2026, the temperature-variation research path was verified with 66 Swift core tests and a signed generic-iPhone Debug build using the iOS 27.2 SDK. No physical device was connected or used for that verification.
 
