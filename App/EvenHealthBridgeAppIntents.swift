@@ -47,7 +47,7 @@ struct ImportEvenDataIntent: AppIntent {
 struct StudyEvenDataIntent: AppIntent {
     static let targetDestination = EvenHealthBridgeDestination.appleWatchStudy
     static let title: LocalizedStringResource = "Analizza dati Even"
-    static let description = IntentDescription("Apri lo studio locale dei dati Even e Apple Watch.")
+    static let description = IntentDescription("Apri lo studio locale dei dati Even.")
     static let openAppWhenRun = true
 
     func perform() async throws -> some IntentResult {
